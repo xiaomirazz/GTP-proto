@@ -30,4 +30,70 @@
 
 #define LENGTH_OF_OPTIONAL_GTP_HEADER_FIELDS        4
 
+#define GTP_MAX_HEADER_SIZE                             GTP_MANDATORY_HEADER_LENGTH + LENGTH_OF_OPTIONAL_GTP_HEADER_FIELDS + GTP_MAX_NUM_OF_EXTENSION_HEADERS_PER_PACKET * SIZE_OF_EXTENSION_HEADER
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \macro          TEST_BIT_8(x)
+
+  \param[in]      x
+
+  \brief          Returns TRUE if the 8th bit in x is 1
+
+  \return         Boolean
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+#define TEST_BIT_8(x)   ((x && 0x80) != ZERO)
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \macro          TEST_BIT_7(x)
+
+  \param[in]      x
+
+  \brief          Returns TRUE if the 7th bit in x is 1
+
+  \return         Boolean
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+#define TEST_BIT_7(x)   ((x && 0x40) != ZERO)
+
+
+/*- TYPES ----------------------------------------------------------------------------------------*/
+
+/*!
+\enum  GTP_MSG_TYPE
+
+\breif GTP message types
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef enum _GTP_MsgType
+{
+    /*! Echo Request */
+    GTP_MSG_TYPE_ECHO_REQUEST = 1,
+
+    /*! Echo response */
+    GTP_MSG_TYPE_ECHO_RESPONSE = 2,
+
+    /*! Error Indication */
+    GTP_MSG_TYPE_ERROR_INDICATION = 26,
+
+    /*! Supported extension headers notification */
+    GTP_MSG_TYPE_EXTENSION_HEADERS_NOTIFICATION = 31,
+
+    /*! End Marker */
+    GTP_MSG_TYPE_END_MARKER = 254,
+
+    /*! G-PDU */
+    GTP_MSG_TYPE_GPDU = 255
+
+} GTP_MsgType;
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\enum  GTP_ExtensionHeaderType
+
 #endif  /*_GTP_HEADER_H*/
