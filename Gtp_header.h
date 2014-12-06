@@ -95,5 +95,70 @@ typedef enum _GTP_MsgType
 /*------------------------------------------------------------------------------------------------*/
 /*!
 \enum  GTP_ExtensionHeaderType
+\breif Type of the Extension Headers
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef enum _GTP_ExtensionHeaderType
+{
+
+    /*! No more extension headers*/
+    NO_MORE_HEADERS = 0,
+
+    /*! UDP port.Provides the UDP source port of the triggering message*/
+    UDP_PORT = 64,
+
+    /*! PDCP PDU Number*/
+    PDCP_PDU_NUMBER = 192
+
+} GTP_ExtensionHeaderType;
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\enum  GTP_InformationElementType
+
+\breif GTP-U signaling message may contain several information elements and these are the Types
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef enum _GTP_InformationElementType
+{
+    /*! Type Recovery */
+    GTP_IE_TYPE_RECOVERY = 14,
+
+    /*! Tunnel End-point ID data I */
+    GTP_IE_TYPE_TUNNEL_ENDPOINT_ID_DATA_I = 16,
+
+    /*! GSN Address */
+    GTP_IE_TYPE_GSN_ADDRESS = 133,
+
+    /*! Extension Header Type List */
+    GTP_IE_TYPE_EXTENSION_HEADER_TYPE_LIST = 141,
+
+    /*! Private extension */
+    GTP_IE_TYPE_PRIVATE_EXTENSION = 255
+
+} GTP_InformationElementType;
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\union  InformationElementValue
+
+\brief	description
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef union _InformationElementValue
+{
+    /*! GTP IP*/
+    eNB_TransportAddress GTPPeerAddress;
+
+    /*! Tunnel Endpoint Identifier Data I*/
+    SDS_UINT32           TEID_I;
+
+    /*! Restart Counter*/
+    SDS_UINT8            RestartCounter;
+
+    /*! Extension Header List*/
+    SDS_UINT8*           ExtHeaderList_Ptr;
+
+} InformationElementValue;
 
 #endif  /*_GTP_HEADER_H*/
