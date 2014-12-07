@@ -160,5 +160,52 @@ typedef union _InformationElementValue
     SDS_UINT8*           ExtHeaderList_Ptr;
 
 } InformationElementValue;
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\struct   GTP_extensionHeader
 
+\brief    GTP-U extension header
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef struct _GTP_extensionHeader
+{
+
+    /*! Next extension header Type*/
+    GTP_ExtensionHeaderType type;
+
+    /*! Specifies the length in 4 octets units. ie an extension header of length 4 bytes will have a value of 1 in this field*/
+    SDS_UINT8 length;
+
+    /*! Extension header contetn, maybe PDCP PDU number or UDP port number*/
+    SDS_UINT16 content;
+
+} GTP_extensionHeader;
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\struct   InformationElement
+
+\brief 	  description
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef struct _InformationElement
+{
+    /*! Information Element Type*/
+    GTP_InformationElementType type;
+
+    /*! Information Element Length*/
+    SDS_UINT16       length;
+
+    /*! Information Element Value*/
+    InformationElementValue value;
+
+} InformationElement;
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\struct   GTP_PACKET
+
+\brief    GTP-U packet
+*/
+/*------------------------------------------------------------------------------------------------*/
 #endif  /*_GTP_HEADER_H*/
