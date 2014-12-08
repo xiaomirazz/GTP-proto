@@ -208,4 +208,68 @@ typedef struct _InformationElement
 \brief    GTP-U packet
 */
 /*------------------------------------------------------------------------------------------------*/
+typedef struct _GTP_HEADER
+{
+    /*! GTP-U version */
+    SDS_UINT8 version;
+
+    /*! Protocol type indicates weather the used protocol is GTP or GTP'. Should be 1 for GTP */
+    SDS_BOOL protocolType;
+
+    /*! If set to 1,the Extension header is meaningful */
+    SDS_BOOL extensionFlag;
+
+    /*! If set to 1,the sequence number is meaningful */
+    SDS_BOOL sequenceNumberFlag;
+
+    /*! If set to 1 , the N-PDU Number field is meaningful */
+    SDS_BOOL pnFlag;
+
+    /*! Indicates the type of the GTP message */
+    GTP_MsgType msgType;
+
+    /*! Indicates the Indicates the length of the payload */
+    SDS_UINT16 length;
+
+    /*! Holds Tunnel ID */
+    SDS_UINT32 TEID;
+
+    /*! Holds sequence number */
+
+    SDS_UINT16 sequenceNumber;
+
+    /*! Holds N-PDU number */
+    SDS_UINT8 N_PDU_number;
+
+    /*! Number of information elements*/
+    SDS_UINT8 numberOfIEs;
+
+    /*! Array of extension headers*/
+    GTP_extensionHeader  extensionHeadersArray[GTP_MAX_NUM_OF_EXTENSION_HEADERS_PER_PACKET];
+
+    /*! Array of Information Elements*/
+    InformationElement   informationElements[GTP_MAX_NUM_OF_INFORMATION_ELEMENTS_PER_PACKET];
+
+} GTP_HEADER;
+
+/*- GLOBAL VARIABLES -----------------------------------------------------------------------------*/
+
+/*- LOCAL VARIABLES ------------------------------------------------------------------------------*/
+
+/*- FUNCTION DECLARATIONS ------------------------------------------------------------------------*/
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_UINT32 GTP_encodePacket(GTP_HEADER* gtpPacket , SDS_UINT8* rawDataBuffer_Ptr , SDS_UINT32 rawData_offset)
+
+  \param[in]      GTP_HEADER* gtpPacket , SDS_UINT8* rawDataBuffer_Ptr , SDS_UINT32 rawData_offset
+
+  \brief          Encodes a GTP packet to be sent on the network and copies the header in rawDataBuffer_ptr.
+
+  \return         Length of encoded header and -1 if rawData_offset was less than the required header not enough
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_INT32 GTP_encodePacket(GTP_HEADER* gtpPacket , SDS_UINT8* rawDataBuffer_Ptr , SDS_UINT32 rawData_offset);
 #endif  /*_GTP_HEADER_H*/
