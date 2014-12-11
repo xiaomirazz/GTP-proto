@@ -272,4 +272,22 @@ typedef struct _GTP_HEADER
 */
 /*------------------------------------------------------------------------------------------------*/
 SDS_INT32 GTP_encodePacket(GTP_HEADER* gtpPacket , SDS_UINT8* rawDataBuffer_Ptr , SDS_UINT32 rawData_offset);
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_decodePacket(SDS_UINT8* receivedPacket, SDS_UINT32 len, GTP_PACKET gtpPacket)
+
+  \param[in]      SDS_UINT8* receivedPacket, SDS_UINT32 len, GTP_PACKET gtpPacket
+
+  \brief          Decodes receivedPacket to GTP_PACKET structure.
+
+  \return         Number of read bytes
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_UINT32 GTP_decodePacket(SDS_UINT8* receivedPacket, SDS_UINT32 len, GTP_HEADER* gtpPacket, SDS_BOOL* decodeResult);
+
+/*!
+\}
+*/
 #endif  /*_GTP_HEADER_H*/
