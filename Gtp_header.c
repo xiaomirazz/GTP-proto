@@ -617,3 +617,160 @@ function_exit:
 return totalNumberOfDecodedBytes;
    /* LOG_EXIT("GTP_decodeAction");*/
 }
+
+SDS_STATIC SDS_BOOL GTP_decodeIEs(SDS_UINT8* receivedPacket,SDS_UINT16 len, GTP_HEADER* gtpPacket)
+{
+    SDS_UINT32                  index = 0;
+    SDS_UINT32                  i = 0;
+    GTP_InformationElementType  IEType;
+    SDS_BOOL                    decodeStatus = FALSE;
+    SDS_UINT16                  length = 0;
+
+    switch (gtpPacket->msgType)
+    {
+    case GTP_MSG_TYPE_ECHO_REQUEST:
+    case GTP_MSG_TYPE_END_MARKER:
+        /*possible IE is private extension ,so we will check this IE if it is supported*/
+        decodeStatus = TRUE;
+        break;
+    case GTP_MSG_TYPE_ECHO_RESPONSE:
+        while(index < len)
+        {
+            IEType = receivedPacket[index++];
+            switch(IEType)
+            {
+            case GTP_IE_TYPE_RECOVERY:
+                /*Mandatory IE and it will be neglected*/
+                index++;
+                decodeStatus = TRUE;
+                index = len;
+                break;
+            case GTP_IE_TYPE_TUNNEL_ENDPOINT_ID_DATA_I:
+                /*unexpected TV IE*/
+                index += 4;
+                break;
+            case GTP_IE_TYPE_EXTENSION_HEADER_TYPE_LIST:
+                /*unexpected IE*/
+                length = receivedPacket[index++];
+                index += length;
+                break;
+            default:
+                if(TRUE == UTILS_IS_BIT_SET(IEType,8))
+                {
+                    UTILS_INT16_ALIGN_DEC(&(receivedPacket[index]), &length);
+                    index += 2;
+                    index += (length * 4);
+                }
+                else
+                {
+                    /*unknown TV element*/
+                    index = len;
+                }
+                break;
+            }
+        }
+        break;
+    case GTP_MSG_TYPE_EXTENSION_HEADERS_NOTIFICATION:
+        while(index < len)
+        {
+            IEType = receivedPacket[index++];
+            switch(IEType)
+            {
+            case GTP_IE_TYPE_RECOVERY:
+                /*Mandatory IE and it will be neglected*/
+                index++;
+                break;
+            case GTP_IE_TYPE_TUNNEL_ENDPOINT_ID_DATA_I:
+                /*unexpected TV IE*/
+                index += 4;
+                break;
+            case GTP_IE_TYPE_EXTENSION_HEADER_TYPE_LIST:
+                if(ZERO == i)
+                {
+                    length = receivedPacket[index++];
+                    index = len;
+                    gtpPacket->informationElements[0].type = GTP_IE_TYPE_EXTENSION_HEADER_TYPE_LIST;
+                    gtpPacket->informationElements[0].length = length;
+                    gtpPacket->informationElements[0].value.ExtHeaderList_Ptr = &(receivedPacket[index]);
+                    decodeStatus = TRUE;
+                    i++;
+                }
+                break;
+            default:
+                if(TRUE == UTILS_IS_BIT_SET(IEType,8))
+                {
+                    UTILS_INT16_ALIGN_DEC(&(receivedPacket[index]), &length);
+                    index += 2;
+                    index += (length * 4);
+                }
+                else
+                {
+                    /*unknown TV element*/
+                    index = len;
+                }
+                break;
+            }
+        }
+        break;
+    case GTP_MSG_TYPE_ERROR_INDICATION:
+        while(index < len)
+        {
+            IEType = receivedPacket[index++];
+            switch(IEType)
+            {
+            case GTP_IE_TYPE_RECOVERY:
+                /*Mandatory IE and it will be neglected*/
+                index++;
+                break;
+            case GTP_IE_TYPE_EXTENSION_HEADER_TYPE_LIST:
+                /*unexpected IE*/
+                length = receivedPacket[index++];
+                index += length;
+                break;
+            case GTP_IE_TYPE_TUNNEL_ENDPOINT_ID_DATA_I:
+                if(ZERO == i)
+                {
+                    gtpPacket->informationElements[i].type = GTP_IE_TYPE_TUNNEL_ENDPOINT_ID_DATA_I;
+                    UTILS_INT32_ALIGN_DEC(&receivedPacket[index],
+                        &(gtpPacket->informationElements[i].value.TEID_I));
+                    index += 4;
+                    i++;
+                }
+                break;
+            case GTP_IE_TYPE_GSN_ADDRESS:
+                if(NUMBER_1 == i)
+                {
+                    gtpPacket->informationElements[i].type = GTP_IE_TYPE_GSN_ADDRESS;
+                    gtpPacket->informationElements[i].length = receivedPacket[index++];
+                    UTILS_INT32_ALIGN_DEC(&receivedPacket[index],
+                        &(gtpPacket->informationElements[i].value.GTPPeerAddress));
+                    index += 4* gtpPacket ->informationElements[i].length;
+                    i++;
+                    decodeStatus = TRUE;
+                    index = len;
+                }
+                break;
+            default:
+                if(TRUE == UTILS_IS_BIT_SET(IEType,8))
+                {
+                    UTILS_INT16_ALIGN_DEC(&(receivedPacket[index]), &length);
+                    index += 2;
+                    index += (length * 4);
+                }
+                else
+                {
+                    /*unknown TV element*/
+                    index = len;
+                }
+                break;
+            }
+        }
+        break;
+    default:
+        break;
+    } /*switch (gtpPacket->msgType)*/
+
+    gtpPacket->numberOfIEs = i;
+
+   return decodeStatus;
+}
