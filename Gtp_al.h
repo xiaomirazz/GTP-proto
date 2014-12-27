@@ -49,4 +49,105 @@ typedef struct _GTP_AL_Context
 
 } GTP_AL_Context;
 
+/*- GLOBAL VARIABLES -----------------------------------------------------------------------------*/
+
+/*- LOCAL VARIABLES ------------------------------------------------------------------------------*/
+
+/*- FUNCTION DECLARATIONS ------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_AL_sockListenTask(void* a_arg_Ptr)
+
+  \param[in]      void* a_arg_Ptr: 
+
+  \brief          Task created by GTP_AL to listen on GTP UDP port.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void* GTP_AL_sockListenTask(void* a_arg_Ptr);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_AL_destroy_handler(GTP_AL_destroy* a_rcvdMsg_Ptr)
+
+  \param[in]      GTP_AL_destroy* a_rcvdMsg_Ptr
+
+  \brief          Destroys GTP AL.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_AL_destroy_handler(GTP_AL_destroy* a_rcvdMsg_Ptr);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_AL_reset_Handler(GTP_AL_reset* a_msg)
+
+  \param[in]      GTP_AL_reset* a_rcvdMsg_Ptr
+
+  \brief          resets GTP AL: closes UDP socket reception/transmission
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_AL_reset_Handler(GTP_AL_reset* a_msg);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_AL_init_Handler(GTP_AL_init* a_rcvdMsg_Ptr)
+
+  \param[in]      GTP_AL_init* a_rcvdMsg_Ptr
+
+  \brief          Initializes GTP AL.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_AL_init_Handler(GTP_AL_init* a_rcvdMsg_Ptr);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_AL_start_Handler(GTP_AL_start* a_msg)
+
+  \param[in]      GTP_AL_start* a_msg
+
+  \brief          Starts the GTP_AL and creates the listen task and sockets.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_AL_start_Handler(GTP_AL_start* a_msg);
+
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_Status GTP_AL_sendGTPpacket(SDS_UINT8* a_buff, SDS_UINT32 len, SDS_UINT32 peerHostIp,SDS_BOOL32 MSG_MORE_Flag)
+
+  \param[in]  SDS_UINT8* a_buff, SDS_UINT32 len, SDS_UINT32 peerHostIp,SDS_BOOL32 MSG_MORE_Flag
+
+  \brief          Sends buff to the peer host GTP and returns status.
+
+  \return         SDS_Status
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_Status GTP_AL_sendGTPpacket(SDS_UINT8* a_buff, SDS_UINT32 len, SDS_UINT32 peerHostIp,SDS_BOOL32 MSG_MORE_Flag);
+
+/*!
+\}
+*/
+
+#endif  /*_GTP_AL_H*/
 
