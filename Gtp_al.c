@@ -92,3 +92,62 @@ void GTP_AL_init_Handler(GTP_AL_init* a_rcvdMsg_Ptr)
     /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
     LOG_EXIT("GTP_AL_init_handler");
 }
+
+void GTP_AL_start_Handler(GTP_AL_start* a_msg)
+{
+    SDS_INT32           bret;
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+    LOG_ENTER("GTP_AL_start_handler");
+
+    /* ANSWERED_WALK_THROUGH_R2.0_ratef_Oct 17, 2010: use WRP_SOCK functions
+     * memad: No UDP sockets in WRP sockets
+     */
+
+    /* Create server socket */
+    g_GTP_AL_Ptr->listenSocketDesc = socket(PF_INET, SOCK_DGRAM, 0);
+
+    /* Reset structure */
+    SKL_MEMORY_SET(&g_GTP_AL_Ptr->serverAddr, ZERO,sizeof(g_GTP_AL_Ptr->serverAddr));
+
+    /* Set family as IP protocol */
+    g_GTP_AL_Ptr->serverAddr.sin_family = AF_INET;
+    /* Set server port */
+    g_GTP_AL_Ptr->serverAddr.sin_port = htons(GTP_PORT);
+    /* Receive from any address */
+    g_GTP_AL_Ptr->serverAddr.sin_addr.s_addr = INADDR_ANY;
+    /* Bind socket */
+    bret = bind(g_GTP_AL_Ptr->listenSocketDesc, (struct sockaddr*)&g_GTP_AL_Ptr->serverAddr, sizeof(g_GTP_AL_Ptr->serverAddr));
+    if( bret < 0)
+    {
+        LOG_BRANCH("Failed to bind server socket");
+        perror("bind");
+    } /*if(bind)*/
+
+    /* Create a task to listen on the GTP port */
+   /*CROSS_REVIEW_habdallah_DONE define the priority with 25*/
+    /*CROSS_REVIEW_habdallah_DONE define stack size 21504*/
+    /*CROSS_REVIEW_habdallah * we may reconsider allocating thread in skeleton*/
+    listenTaskEnable = TRUE;
+
+    /* Create peer host socket to send on , the address of the peer will be set by the GTP during open tunnel procedure*/
+    g_GTP_AL_Ptr->sendSocketDesc = socket(PF_INET, SOCK_DGRAM, 0);
+
+    /* Reset structure */
+    SKL_MEMORY_SET(&g_GTP_AL_Ptr->peerHostAddr, ZERO,sizeof(g_GTP_AL_Ptr->peerHostAddr));
+
+    /* Set family as IP protocol */
+    g_GTP_AL_Ptr->peerHostAddr.sin_family = AF_INET;
+    /* Set server port */
+    g_GTP_AL_Ptr->peerHostAddr.sin_port = htons(GTP_PORT);
+
+#ifdef GTP_AL_TEST
+    if(inet_aton("172.25.25.232", &g_GTP_AL_Ptr->peerHostAddr.sin_addr) == 0)
+    {
+        LOG_BRANCH("Failed to set peer host IP");
+    } /*if(Failed to set peer )*/
+#endif
+
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+    LOG_EXIT("GTP_AL_start_handler");
+}
+
