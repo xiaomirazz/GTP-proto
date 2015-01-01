@@ -151,3 +151,25 @@ void GTP_AL_start_Handler(GTP_AL_start* a_msg)
     LOG_EXIT("GTP_AL_start_handler");
 }
 
+void GTP_AL_reset_Handler(GTP_AL_reset* a_msg)
+{
+
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+    LOG_ENTER("GTP_AL_reset_Handler");
+
+    /* Disable listen task till GTP_AL_start is called*/
+    listenTaskEnable = FALSE;
+
+    /* Close server socket */
+    shutdown (g_GTP_AL_Ptr->listenSocketDesc, SHUT_RDWR);
+    close(g_GTP_AL_Ptr->listenSocketDesc);
+
+    /* Close client socket */
+    shutdown (g_GTP_AL_Ptr->sendSocketDesc, SHUT_RDWR);
+    close(g_GTP_AL_Ptr->sendSocketDesc);
+
+/*function_exit:*/
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+    LOG_EXIT("GTP_AL_reset_Handler");
+}
+
