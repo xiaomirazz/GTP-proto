@@ -173,3 +173,36 @@ void GTP_AL_reset_Handler(GTP_AL_reset* a_msg)
     LOG_EXIT("GTP_AL_reset_Handler");
 }
 
+
+void GTP_AL_destroy_handler(GTP_AL_destroy* a_rcvdMsg_Ptr)
+{
+
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+    LOG_ENTER("GTP_AL_destroy_handler");
+
+    /*CROSS_REVIEW_habdallah_DONE close the sockets first then destroy the pool*/
+    listenTaskEnable = FALSE;
+
+    /* FIXME_memad : destroy listen task*/
+    /* WALK_THROUGH_R2.0_ratef_Oct 19, 2010: you can proceed and destroy the pool
+     * only after the listenTask exists
+     * You need here a semaphore lock, when un-locked by the listen task you can proceed
+     * and destroy the task
+     */
+
+    /*BUG: the release of this pool should be from skeleton since it is shared between 2 components
+     * Destroy allocated buffer
+     * SKL_FIXED_SIZE_POOL_DESTROY(GTP_SDU_POOL,SHARED);
+     *
+     */
+
+    /* Destroy the listen task */
+    SKL_TASK_DESTROY(g_GTP_AL_Ptr->listenTask_Ptr);
+
+    /* Free the component structure */
+    SKL_MEMORY_FREE(g_GTP_AL_Ptr);
+
+/*function_exit:*/
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+    LOG_EXIT("GTP_AL_destroy_handler");
+}
