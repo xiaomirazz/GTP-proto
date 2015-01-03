@@ -206,3 +206,154 @@ void GTP_AL_destroy_handler(GTP_AL_destroy* a_rcvdMsg_Ptr)
     /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
     LOG_EXIT("GTP_AL_destroy_handler");
 }
+
+void* GTP_AL_sockListenTask(void* a_arg_Ptr)
+{
+    GTP_SDU*             rxGTP_SDU;
+    SDS_Status           status;
+    unsigned int         addr_len;
+    SDS_INT32            socketPacketLength;
+    SDS_INT32            actualReceivedPacketLength;
+    SDS_UINT8*           data_buff_Ptr;
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+    LOG_ENTER("GTP_AL_sockListenTask");
+
+
+    while(FALSE == listenTaskEnable)
+    {
+        /* Task Sleep */
+        SKL_TASK_SLEEP(GTP_AL_TASK_SLEEP_MS);
+
+    } /*while(TRUE)*/
+    /*CROSS_REVIEW_habdallah_DONE ?is it done now? need to set to global variable */
+    while(TRUE == listenTaskEnable)
+    {
+
+        addr_len = sizeof(g_GTP_AL_Ptr->serverAddr);
+
+        /* Reception loop */
+        data_buff_Ptr = g_GTP_AL_Ptr->data_buff;
+
+        /*DONE_walkthrough_R2.0_Oct 25, 2010_root:
+         *
+         * - receive total length only (check PEEK and TRUNC flags) and then allocate a rawDataBuff for the chunk + GTP_DESC (has pointer to allocated buffer + SDU_count)
+         * - receive data in the new allocated rawdataBuffer
+         * - process GTP header, and for each SDU create a n SDU_DESC and increment SDU_Count in GTP_DESC
+         * - SDU_Desc points to parent GTP_DESC
+         * - RLC_TX decrements SDU_Count per freed SDU_Desc and when SDU_Count = 0 de-alloc GTP_DESC and rawDataBuff
+         * */
+
+
+        /* Receive from the socket, recvfrom() returns number of received bytes and -1 if failure*/
+        /* First use recvfrom with MSG_PEEK and MSG_TRUNC options and specifying the length of receive buffer to ZERO.
+         * MSG_PEEK : Allows us to read the data without removing it from the socket buffer
+         * MSG_TRUNC: Makes the recvfrom() return the actual length of the received data in the socket buffer
+         *            and not the number of bytes actually read
+         *
+         */
+        socketPacketLength = recvfrom(g_GTP_AL_Ptr->listenSocketDesc,
+            g_GTP_AL_Ptr->data_buff,
+            ZERO /* Size of reception buffer */,
+            MSG_PEEK | MSG_TRUNC     /* Flags*/,
+            (struct sockaddr*)&g_GTP_AL_Ptr->serverAddr,
+            &addr_len);
+
+        /* Check if error occurred during reception*/
+        if(socketPacketLength == -1)
+        {
+            LOG_BRANCH("Failed to receive from socket");
+            continue;
+        }
+
+        /* Skip if the received length was -1*/
+        if(socketPacketLength < NUMBER_8)
+        {
+            LOG_BRANCH("Invalid GTP packet received , length < 8 bytes");
+            continue;
+        } /*if(Invalid GTP packet received , length < 8 bytes)*/
+
+        /*DONE_walkthrough_R2.0_Oct 25, 2010_root: add SDU_Count and keep this RX_GTP_SDU
+         * alive (rename to GTP_DESC)
+         */
+        /* Allocate GTP_SDU */
+        SKL_FIXED_SIZE_BUFF_ALLOC(GTP_SDU_POOL,
+            SHARED,
+            sizeof(GTP_SDU),
+            rxGTP_SDU);
+        LOG_ASSERT_WITH_EXCEPTION(EXCEPTION_LOCAL_RECORD_ALLOC_FAILED, NULL
+            != rxGTP_SDU, "Cannot allocate GTP AL socket reception SDU");
+
+        /* Allocate a raw data buffer with the number of received bytes in the socket */
+        SKL_VARIABLE_SIZE_BUFF_ALLOC(TX_DATA_POOL_RAW,
+            SHARED,
+            socketPacketLength /*Size of rawdata buffer */,
+            rxGTP_SDU->rawData_buffer_Ptr);
+        LOG_ASSERT_WITH_EXCEPTION(EXCEPTION_LOCAL_RECORD_ALLOC_FAILED, NULL
+            != rxGTP_SDU->rawData_buffer_Ptr, "Cannot allocate GTP AL rawData reception buffer");
+
+        /* Receive the received data from the socket in the allocated rawdata buffer */
+        actualReceivedPacketLength = recvfrom(g_GTP_AL_Ptr->listenSocketDesc,
+            rxGTP_SDU->rawData_buffer_Ptr,
+            socketPacketLength /* Size of reception buffer */,
+            ZERO     /* Flags*/,
+            (struct sockaddr*)&g_GTP_AL_Ptr->serverAddr,
+            &addr_len);
+
+        /*DONE_walkthrough_R2.0_Oct 27, 2010_root: log or assert in case receivedlength != peek length
+         * to catch the problem
+         */
+        LOG_ASSERT(actualReceivedPacketLength == socketPacketLength , " Actual received bytes not equal to socket peeked length");
+        if(actualReceivedPacketLength == -1)
+        {
+            LOG_BRANCH("Failed to receive socket data");
+
+            /* Release allocated rawData buffer*/
+            SKL_VARIABLE_SIZE_BUFF_RELEASE(TX_DATA_POOL_RAW, SHARED,rxGTP_SDU->rawData_buffer_Ptr);
+
+            /* Release allocated GTP_SDU*/
+            SKL_FIXED_SIZE_BUFF_RELEASE(GTP_SDU_POOL,SHARED,rxGTP_SDU);
+
+            continue;
+        } /*if(Failed to receive socket data)*/
+
+        LOG_TRACE("Successful receive of Data packet");
+
+        /* Set the length of the rawdata buffer*/
+        rxGTP_SDU->rawData_buffer_Length = socketPacketLength;
+
+        /* Reset counters*/
+        rxGTP_SDU->enqueuedSDUsCount = ZERO;
+
+        rxGTP_SDU->freedSDUsCount_RX = ZERO;
+
+        rxGTP_SDU->freedSDUsCount_TX = ZERO;
+
+        /* Copy Source IP to the enqueued SDU */
+        rxGTP_SDU->srcAddress.addrV4.addr = g_GTP_AL_Ptr->serverAddr.sin_addr.s_addr;
+
+        rxGTP_SDU->srcPortNum = g_GTP_AL_Ptr->serverAddr.sin_port;
+
+        /* Send data to GTP */
+        QUEUE_MANAGER_ENQUEUE(QUEUE_ID_TX_GTP_AL_TO_GTP, rxGTP_SDU, &status);
+        if(WRP_SUCCESS != status)
+        {
+            LOG_EXCEPTION("Failed to Enqueue RX_GTP_SDU in QUEUE_ID_TX_GTP_AL_TO_GTP queue");
+        }
+
+    }/*(TRUE == listenTaskEnable)*/
+
+
+#if 0 /*BUG: this is already done in GTP_AL_reset handler that has to be called before destroy anyway */
+    /* TODO_memad : hossam to decide how the destroy will be done */
+    /* Close server socket */
+    close(g_GTP_AL_Ptr->listenSocketDesc);
+
+    /* Close client socket */
+    close(g_GTP_AL_Ptr->sendSocketDesc);
+#endif
+
+/*function_exit:*/
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+    LOG_EXIT("GTP_AL_sockListenTask");
+    return NULL;
+}
