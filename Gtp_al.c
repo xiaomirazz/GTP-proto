@@ -357,3 +357,51 @@ void* GTP_AL_sockListenTask(void* a_arg_Ptr)
     LOG_EXIT("GTP_AL_sockListenTask");
     return NULL;
 }
+SDS_Status GTP_AL_sendGTPpacket(SDS_UINT8* a_buff, SDS_UINT32 len, SDS_UINT32 peerHostIp,SDS_BOOL32 MSG_MORE_Flag)
+{
+#ifndef T1_TEST
+    SDS_INT32   numSent;
+    SDS_INT32   flags;
+#endif
+    SDS_Status  status = WRP_SUCCESS;
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+    LOG_ENTER("GTP_AL_sendGTPpacket");
+
+    /* Setting the IP for the peer host */
+    g_GTP_AL_Ptr->peerHostAddr.sin_addr.s_addr = peerHostIp;
+
+#ifdef T1_TEST
+
+    SKL_MEMORY_COPY(g_GTPMsgTxBuffer+ g_GTPMsgTxBuffer_offset + 9,a_buff,len);
+
+    if (TRUE == MSG_MORE_Flag)
+    {
+        g_GTPMsgTxBuffer_offset +=len;
+    }
+    else
+    {
+        sendAirMsgToTool(g_GTPMsgTxBuffer,len + g_GTPMsgTxBuffer_offset ,AIR_MSG_TYPE_GTP_HEADER);
+        g_GTPMsgTxBuffer_offset = 0;
+    }
+#else
+    if (TRUE == MSG_MORE_Flag)
+    {
+        flags = MSG_MORE;
+    } else
+    {
+        flags = 0;
+    }
+    numSent = sendto(g_GTP_AL_Ptr->sendSocketDesc, a_buff, len, flags, (struct sockaddr*)&g_GTP_AL_Ptr->peerHostAddr, sizeof(g_GTP_AL_Ptr->peerHostAddr));
+
+
+
+    if(numSent < 0)
+    {
+        LOG_BRANCH("Failed to send on socket");
+        status = WRP_FAIL;
+    } /*if(Failed to send on socket)*/
+#endif
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+    LOG_EXIT("GTP_AL_sendGTPpacket");
+    return status;
+}
