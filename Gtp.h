@@ -41,3 +41,58 @@
 #define GTP_FWD_DL_TUNNEL_TEID_INDEX                2
 
 #define GTP_TUNNEL_INDEX_BIT_COUNT                  16
+/*------------------------------------------------------------------------------------------------*/
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\macro          GTP_GET_TRANSPORT_ADRESS(newTunnelContex_Ptr,a_msg_Ptr)
+
+\param[in]      newTunnelContex_Ptr,a_msg_Ptr
+
+\brief          Gets the Transport address from the a_msg_Ptr and set it in the tunnel newTunnelContext
+
+\return         <Return Type>
+
+\b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+#define COPY_TRANSPORT_ADDRESS( dst , src )         \
+{                                                   \
+        dst.addrV4.addr = src.addrV4.addr;          \
+}                                                   \
+
+
+#define GET_TUNNEL_TYPE_INDEX_FROM_TEID(TEID)                   \
+     (SDS_UINT16)(TEID >> GTP_TUNNEL_INDEX_BIT_COUNT)           \
+/*- TYPES ----------------------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------------------------------*/
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\enum  GTP_tunnelStatus
+
+\breif The GTP tunnel status
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef enum _GTP_tunnelStatus
+{
+    /*! The tunnel is open and a connection is established*/
+    GTP_TUNNEL_STATUS_OPEN = 0,
+    /*! The tunnel is closed and the connection is terminated*/
+    GTP_TUNNEL_STATUS_CLOSED = 1
+} GTP_tunnelStatus;
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\enum  GTP_TunnelMode
+
+\breif Holds the Mode of the established tunnel , either Uplink or Downlik
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef enum _GTP_TunnelMode
+{
+    /*! Established tunnel direction is Uplink*/
+    GTP_TUNNEL_UPLINK = 0,
+    /*! Established tunnel direction is Downlink*/
+    GTP_TUNNEL_DOWNLINK = 1
+} GTP_TunnelMode;
