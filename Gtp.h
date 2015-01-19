@@ -96,3 +96,35 @@ typedef enum _GTP_TunnelMode
     /*! Established tunnel direction is Downlink*/
     GTP_TUNNEL_DOWNLINK = 1
 } GTP_TunnelMode;
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\enum  GTP_Tunnel_QCI_Type
+
+\breif Tunnel type GBR or Non GBR.
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef enum _GTP_Tunnel_QCI_Type
+{
+    /*! Guaranteed bit rate*/
+    GBR = 0,
+    /*! Non guaranteed bit rate*/
+    NON_GBR = 1
+} GTP_Tunnel_QCI_Type;
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\enum  GTP_PacketStatus
+
+\breif Indicates whether this packet will be processed or discarded
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef enum _GTP_PacketStatus
+{
+    /*! Process*/
+    GTP_Process = 0,
+    /*! Discard*/
+    GTP_Discard = 1
+} GTP_PacketStatus;
+
+
