@@ -127,4 +127,107 @@ typedef enum _GTP_PacketStatus
     GTP_Discard = 1
 } GTP_PacketStatus;
 
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\struct   GTP_pathEchoRecord
 
+\brief    Holds the GTP path ECHO status which shows
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef struct _GTP_pathEchoRecord
+{
+    /*! Node to be inserted in Echo Path List*/
+    ListNode               listNode;
+
+    /*! Path Transport address (port + IP ) */
+    eNB_TransportAddress    pathAddress;
+
+    /*! Number of elapsed ticks where each tick represent 5 seconds , used to calculate 60 seconds*/
+    SDS_UINT32              elapsedTicksCount;
+
+    /*! Number of sent Echo Requests without receiving corresponding response */
+    SDS_UINT32              EchoREQCount;
+
+    /*! Flag indicates if an Echo request was sent */
+    SDS_BOOL32              isEchoReqSent;
+
+    /*! Number of tunnels related to this path */
+    SDS_UINT32              relatedTunnelsCount;
+
+    /*! Sequence number of ECHO request */
+    SDS_UINT16              EchoReqSN;
+
+    /*! List of tunnels that belong to this path*/
+    UTILS_LinkedList*       tunnel_List_Ptr;
+
+} GTP_pathEchoRecord;
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\struct   GTP_TunnelContext
+
+\brief    Holds UL GTP tunnel info
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef struct _GTP_TunnelContext
+{
+    /*! Node to be inserted in Echo Path List*/
+    ListNode            listNode;
+
+    /*! Flag to indicate if the End Marker was received for this tunnel.
+     * If TRUE ,any packet received on this tunnel will be discarded silently*/
+    SDS_BOOL32          isEndMarkerReceived;
+
+    /*! Tunnel End-point ID*/
+    SDS_UINT32          TEID;
+
+    /*! Sub frame number that refers to the start of the window*/
+    SDS_UINT32          windowStartSubframe;
+
+    /*! Bearer index of this tunnel*/
+    SDS_UINT16          bearerIndex;
+
+    /*! Expected Sequence number for Uplink, equals the latest received sequence number + 1*/
+    SDS_UINT16          expectedSeqNumber;
+
+    /*! Pointer to path record  */
+    GTP_pathEchoRecord* pathRecord_Ptr;
+
+    /*! GBR/Non-GBR */
+    GTP_Tunnel_QCI_Type QCI_Type;
+
+    /*! Maximum number of bytes allowed for this tunnel*/
+    SDS_UINT32          GBR_MaxAllowedBytes;
+
+    /*! Total received bytes during window on this tunnel*/
+    SDS_UINT32          GBR_TotalReceivedBytes;
+
+} GTP_TunnelContext;
+
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\struct   GTP_TunnelRecord
+
+\brief 	  Contains pointers to GTP contexts for Uplink , Downlink and forwarding tunnels related
+          to a certain Radio Bearer. Not all Radio bearers are bi-directional,therefore someof the
+          of the elements in the structure may not be significant.
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef struct _GTP_TunnelRecord
+{
+    /*! Uplink Tunnel */
+    GTP_TunnelContext*           UL_Tunnel_Ptr;
+
+    /*! Downlink Tunnel */
+    GTP_TunnelContext*           DL_Tunnel_Ptr;
+
+    /*! Uplink Forwarding Tunnel */
+    GTP_TunnelContext*           FWD_UL_Tunnel_Ptr;
+
+    /*! Downlink Forwarding Tunnel */
+    GTP_TunnelContext*           FWD_DL_Tunnel_Ptr;
+
+    /*! UE Index*/
+    SDS_UINT16                   UE_Index;
+
+} GTP_TunnelRecord;
