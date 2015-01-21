@@ -231,3 +231,111 @@ typedef struct _GTP_TunnelRecord
     SDS_UINT16                   UE_Index;
 
 } GTP_TunnelRecord;
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\enum  GTP_Tunnels_Mask
+
+\breif Hold index for each GTP tunnel type
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef enum _GTP_Tunnels_Mask
+{
+    /*! */
+    GTP_DL_TUNNEL_TEID_MASK = GTP_DL_TUNNEL_TEID_INDEX,
+    /*! */
+    GTP_FWD_UL_TUNNEL_TEID_MASK = GTP_FWD_UL_TUNNEL_TEID_INDEX << 16,
+    /*! */
+    GTP_FWD_DL_TUNNEL_TEID_MASK = GTP_FWD_DL_TUNNEL_TEID_INDEX << 16
+} GTP_Tunnels_Mask;
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\struct   GTP_UE_Record
+
+\brief 	  This record is used to limit data rates for UEs.
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef struct _GTP_UE_Record
+{
+    /*! No of Non-GBR bearers for this UE*/
+    SDS_UINT8  noOfTunnels;
+
+    /*! Sub frame number that refers to the start of the window*/
+    SDS_UINT32 windowStartSubframe;
+
+    /*! Maximum number of bytes allowed for this UE */
+    SDS_UINT32 NON_GBR_MaxAllowedBytes;
+
+    /*! Total received bytes during window for this UE */
+    SDS_UINT32 NON_GBR_TotalReceivedBytes;
+
+} GTP_UE_Record;
+
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+\struct   GTP_Context
+
+\brief 	  Holds global variables used by GTP
+*/
+/*------------------------------------------------------------------------------------------------*/
+typedef struct _GTP_Context
+{
+
+    /*CROSS_REVIEW_habdallah_DONE all global values need to prefixed with g_*/
+    /*all these global values may be added to gtp structure*/
+    /*! Array that holds the pointers to GTP Tunnels record. Indexed by Radio bearer ID */
+    GTP_TunnelRecord**      tunnelsRecord;
+
+    /*! Array that holds the pointers UE records. Indexed by UE index */
+    GTP_UE_Record**         UEsRecordsArray_Ptr;
+
+    /*! Holds the maximum number of Tunnels Records that can be used */
+    SDS_UINT32              tunnelRecordsNumber;
+
+    /*! Maximum number of GTP paths*/
+    SDS_UINT32              numberOfPaths;
+
+    /*! Number of supported UEs */
+    SDS_UINT16              numberOfUEs;
+
+    /*! Linked list holding Echo request and response for each path */
+    UTILS_LinkedList*       echoPath_List_Ptr;
+
+    /*! Indicates if the timer was started */
+    SDS_BOOL                is_T3_TimerStarted;
+
+    /*! T3 Timer */
+    WRP_Timer*              T3_timer_Ptr;
+
+    /*! Holds the maximum wait time for a response of a requested message */
+    SDS_UINT32              T3_RESPONSE_numberOfTicks;
+
+    /*! Holds the maximum wait time for a response of a requested message */
+    SDS_UINT32              ECHO_requestPeriod_numberOfTicks;
+
+    /* Maximum number of sent ECHO requests without receiving a response to consider the path down */
+    SDS_UINT32              N3_Requests;
+
+    /*! Pointer to the TunnelContexts pool */
+    WRP_BuffPool*           tunnelRecordsPool_Ptr;
+
+    /*! Pointer to the TunnelContexts pool */
+    WRP_BuffPool*           tunnelContextPool_Ptr;
+
+    /*! Pointer to the TunnelContexts pool */
+    WRP_BuffPool*           pathEchoRecordsPool_Ptr;
+
+    /*! Pointer to UE records pool */
+    WRP_BuffPool*           UERecordsPool_Ptr;
+
+    /*! Our own IP */
+    eNB_TransportAddress    eNB_IpAddress;
+
+    /*! Temporary variable to store the value of enqueued SDUs to overcome the problem of freeing the GTP_SDU*/
+    SDS_UINT32              tempEnqueuedSDUsCount;
+
+    /* Used to store GTP header in case the rawDataOffset is not enough (received packet from PDCP_TX)*/
+    SDS_UINT8               tempGTPheaderBuff[GTP_MAX_HEADER_SIZE];
+} GTP_Context;
+
