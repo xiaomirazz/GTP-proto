@@ -339,3 +339,200 @@ typedef struct _GTP_Context
     SDS_UINT8               tempGTPheaderBuff[GTP_MAX_HEADER_SIZE];
 } GTP_Context;
 
+/*- FUNCTION DECLARATIONS ------------------------------------------------------------------------*/
+
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_init_Handler(GTP_U_init* a_msg_Ptr)
+
+  \param[in]      GTP_U_init* a_msg_Ptr:
+
+  \brief          Initializes the GTP stub.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_init_Handler(GTP_U_init* a_msg_Ptr);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_reset_Handler(GTP_U_reset *a_msg_Ptr)
+
+  \param[in]      GTP_U_reset *a_msg_Ptrt
+
+  \brief          Handles reset procedure for GTP-U.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_reset_Handler(GTP_U_reset *a_msg_Ptr);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_destroy_Handler(GTP_U_destroy* a_msg_Ptr)
+
+  \param[in]      GTP_U_destroy* a_msg_Ptr:
+
+  \brief          De-initializes the GTP stub.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_destroy_Handler(GTP_U_destroy *a_msg_Ptr);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_Rx_PDCP_data_Handler(SDS_UINT32 a_SDUsToServe)
+
+  \param[in]      SDS_UINT32 a_SDUsToServe
+
+  \brief          Handles received data from PDCP.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_Rx_PDCP_data_Handler(SDS_UINT32 a_SDUsToServe);
+
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_Rx_PDCP_TX_FWD_data_Handler(SDS_UINT32 a_SDUsToServe)
+
+  \param[in]      SDS_UINT32 a_SDUsToServe
+
+  \brief          Handles received data from PDCP TX during Handover.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_Rx_PDCP_TX_FWD_data_Handler(SDS_UINT32 a_SDUsToServe);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_Rx_PDCP_RX_FWD_data_Handler(SDS_UINT32 a_SDUsToServe)
+
+  \param[in]      SDS_UINT32 a_SDUsToServe
+
+  \brief          Handles received data from PDCP RX during Handover.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_Rx_PDCP_RX_FWD_data_Handler(SDS_UINT32 a_SDUsToServe);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_Rx_NWK_data_Handler(SDS_UINT32 a_SDUsToServe)
+
+  \param[in]      SDS_UINT32 a_SDUsToServe
+
+  \brief          Called when a GTP packet is received.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_Rx_NWK_data_Handler(SDS_UINT32 a_SDUsToServe);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_Status GTP_Tx_PDCP(GTP_HEADER* gtpPacket ,SDS_UINT8 *payloadStart_Ptr,SDS_UINT32 payloadOffset, GTP_SDU* receivedGTP_SDU_Ptr)
+
+  \param[in]      GTP_HEADER* gtpPacket ,SDS_UINT8 *payloadStart_Ptr,SDS_UINT32 payloadOffset, GTP_SDU* receivedGTP_SDU_Ptr
+
+  \brief          Sends a received packet from GTP to PDCP.
+
+  \return         SDS_Status
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_Status GTP_Tx_PDCP(GTP_HEADER* gtpPacket ,SDS_UINT8 *payloadStart_Ptr,SDS_UINT32 payloadOffset, GTP_SDU* receivedGTP_SDU_Ptr);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_openTunnel_Req_Handler(GTP_openTunnel_Req* a_msg_Ptr)
+
+  \param[in]      GTP_openTunnel_Req* a_msg_Ptr
+
+  \brief          This handler handles assigning GTP tunnel IDs to E-RABs.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_openTunnel_Req_Handler(GTP_openTunnel_Req* a_msg_Ptr);
+
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_closeTunnel_Req_Handler(GTP_closeTunnel_Req* a_msg_Ptr)
+
+  \param[in]      GTP_closeTunnel_Req* a_msg_Ptr
+
+  \brief          This handler de-assigns GTP tunnel IDs from E-RABs.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_closeTunnel_Req_Handler(GTP_closeTunnel_Req* a_msg_Ptr);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_updateTunnel_Req_Handler(GTP_updateTunnel_Req* a_msg_Ptr)
+
+  \param[in]      GTP_openTunnel_Req* a_msg_Ptr
+
+  \brief          Updates a certain tunnel's info.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_updateTunnel_Req_Handler(GTP_updateTunnel_Req* a_msg_Ptr);
+
+
+
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_T3_TimerExpRoutine(GTP_T3_TimerExpired* a_msg_Ptr)
+
+  \param[in]      GTP_T3_TimerExpired* a_msg_Ptr
+
+  \brief          Routine performed when T3 timer expires.The routine should handle sending Echo requests
+                  and updating responses.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+void GTP_T3_TimerExpRoutine(GTP_T3_TimerExpired* a_msg_Ptr);
+
+
+
+/*!
+\}
+*/
+
+#endif  /*_GTP_H_*/
+
