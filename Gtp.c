@@ -22,3 +22,26 @@
 #ifdef T1_TEST
 SDS_UINT32 t3_scale_factor;
 #endif
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \macro          FILL_CONSTANT_PART_IN_GTP_PACKET(gtpPacket)
+
+  \param[in]      gtpPacket : GTP header.
+
+  \brief          Fills constant parts in GTP packet as Cersion,Protocol type,
+                  Extenstension Header Flag, SequenceNumber Flag
+
+  \return
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+#define FILL_CONSTANT_PART_IN_GTP_PACKET(gtpPacket)     \
+{                                                       \
+    gtpPacket.version = GTP_VERSION;                    \
+    gtpPacket.protocolType = GTP_PROTOCOL_TYPE_GTP;     \
+    gtpPacket.extensionFlag = FALSE;                    \
+    gtpPacket.sequenceNumberFlag = TRUE;                \
+    gtpPacket.pnFlag = FALSE;                           \
+    gtpPacket.msgType = GTP_MSG_TYPE_GPDU;              \
+}
