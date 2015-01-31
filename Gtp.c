@@ -73,3 +73,43 @@ SDS_UINT32 t3_scale_factor;
     *a_status_Ptr = GTP_AL_sendGTPpacket(a_buff,a_len,peerHostIp,a_MSG_MORE_Flag);                 \
                                                                                                    \
 }
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \macro          GTP_CONVERT_RATE_TO_NUMBER_OF_BYTES(a_bitRate)
+
+  \param[in]      a_bitRate : bits/sec that can be received for this RB.
+
+  \brief          calculate no of bytes that can be received on RB within a certain window,
+
+  \return         <Return Type>
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+#define GTP_CONVERT_RATE_TO_NUMBER_OF_BYTES(a_bitRate)                                             \
+    (a_bitRate * POLICING_WINDOW_IN_SUBFRAMES)/(1000 * 8)
+
+/*- TYPES ----------------------------------------------------------------------------------------*/
+
+/*- GLOBAL VARIABLES -----------------------------------------------------------------------------*/
+
+
+/*- LOCAL VARIABLES ------------------------------------------------------------------------------*/
+GTP_Context* g_GTP_Ptr;
+/*- FUNCTION DECLARATIONS ------------------------------------------------------------------------*/
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_STATIC SDS_BOOL GTP_addEchoPath(eNB_TransportAddress* pathAddress, GTP_TunnelContext* a_tunnelRecord_Ptr)
+
+  \param[in]      eNB_TransportAddress* pathAddress: Peer IP.
+  \param[in]      GTP_TunnelContext* a_tunnelRecord_Ptr :  pointer to tunnel record.
+
+  \brief          Adds the eNB_TransportAddress in echoPath_List if not already found.
+
+  \return         SDS_BOOL : addition status.
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC SDS_BOOL GTP_addEchoPath(eNB_TransportAddress* pathAddress,GTP_TunnelContext* a_tunnelRecord_Ptr);
