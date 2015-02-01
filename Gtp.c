@@ -113,3 +113,50 @@ GTP_Context* g_GTP_Ptr;
 */
 /*------------------------------------------------------------------------------------------------*/
 SDS_STATIC SDS_BOOL GTP_addEchoPath(eNB_TransportAddress* pathAddress,GTP_TunnelContext* a_tunnelRecord_Ptr);
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_STATIC void GTP_removeEchoPath(GTP_TunnelContext* a_tunnelRecord_Ptr)
+
+  \param[in]      GTP_TunnelContext* a_tunnelRecord_Ptr : Pointer to tunnel record.
+
+  \brief          Removes the eNB_TransportAddress in echoPath_List.
+
+  \return         SDS_STATIC void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC void GTP_removeEchoPath(GTP_TunnelContext* a_tunnelRecord_Ptr);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_STATIC void GTP_updateEchoPath(eNB_TransportAddress* pathAddress, SDS_UINT32 a_bearerIndex, GTP_TunnelContext* a_tunnelRecord_Ptr)
+
+  \param[in]      eNB_TransportAddress* pathAddress : pointer to new IP.
+  \param[in]      SDS_UINT32 a_bearerIndex : bearer index that corresponds to this tunnel.
+  \param[in]      GTP_TunnelContext* a_tunnelRecord_Ptr : pointer to tunnel record.
+
+  \brief          Updates the eNB_TransportAddress in echoPath_List.
+
+  \return         SDS_BOOL : update status.
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC SDS_BOOL GTP_updateEchoPath(eNB_TransportAddress* a_pathAdress_Ptr, SDS_UINT32 a_bearerIndex, GTP_TunnelContext* a_tunnelRecord_Ptr);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_STATIC void GTP_handleEchoResponse(SDS_UINT16 receivedEchoSN,eNB_TransportAddress* srcAdrress)
+
+  \param[in]      SDS_UINT16 receivedEchoSN : sequence number received in the response.
+  \param[in]      eNB_TransportAddress* srcAdrress : IP of the sending peer.
+
+  \brief          Handles the received Echo response by updating the Echo path list with the received responses.
+
+  \return         SDS_STATIC void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC void GTP_handleEchoResponse(SDS_UINT16 receivedEchoSN,eNB_TransportAddress* srcAddress);
