@@ -160,3 +160,52 @@ SDS_STATIC SDS_BOOL GTP_updateEchoPath(eNB_TransportAddress* a_pathAdress_Ptr, S
 */
 /*------------------------------------------------------------------------------------------------*/
 SDS_STATIC void GTP_handleEchoResponse(SDS_UINT16 receivedEchoSN,eNB_TransportAddress* srcAddress);
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_STATIC void  GTP_processPacket(GTP_PACKET* gtpPacket ,SDS_UINT8 *payloadStart_Ptr,SDS_UINT32 payloadOffset, GTP_SDU* receivedGTP_desc_Ptr)
+
+  \param[in]      GTP_PACKET* gtpPacket : pointer to decoded header.
+  \param[in]      SDS_UINT8 *payloadStart_Ptr : pointer to the reception buffer.
+  \param[in]      SDS_UINT32 payloadOffset : offset to get message start.
+  \param[in]      GTP_SDU* receivedGTP_desc_Ptr : pointer to GTP packet descriptor.
+
+  \brief          Processes a GTP packet and perform the suitable action.
+
+  \return         SDS_STATIC void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC void  GTP_processPacket(GTP_HEADER* gtpPacket ,SDS_UINT8 *packetStart_Ptr,SDS_UINT32 payloadOffset, GTP_SDU* receivedGTP_desc_Ptr);
+
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_STATIC void  GTP_sendSupportedExtensionHeaderNotification(eNB_TransportAddress* srcAddress)
+
+  \param[in]      eNB_TransportAddress* srcAddress : IP address of the destination peer.
+
+  \brief          Handles sending the ExtensionHeaderNotification.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC void  GTP_sendSupportedExtensionHeaderNotification(eNB_TransportAddress* srcAddress);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_STATIC void GTP_sendEchoReq(void)
+
+  \param[in]      eNB_TransportAddress* pathAddress : Path IP that echo request will be sent to.
+  \param[in]      SDS_UINT16 EchoReqSN : sequence number that will be sent in the request.
+
+  \brief          Handles sending Echo request message to pathAdress with EchoReqSN in the packet.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC void GTP_sendEchoReq(eNB_TransportAddress* pathAddress , SDS_UINT16 EchoReqSN);
