@@ -209,3 +209,50 @@ SDS_STATIC void  GTP_sendSupportedExtensionHeaderNotification(eNB_TransportAddre
 */
 /*------------------------------------------------------------------------------------------------*/
 SDS_STATIC void GTP_sendEchoReq(eNB_TransportAddress* pathAddress , SDS_UINT16 EchoReqSN);
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             SDS_STATIC void GTP_sendEchoRsp(SDS_UINT16 a_SN)
+
+  \param[in]      SDS_UINT16 a_SN : sequence number that will be sent in the response.
+
+  \brief          Handles sending Echo response with a given Sequence number.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC void GTP_sendEchoRsp(SDS_UINT16 a_SN , eNB_TransportAddress* srcAddress);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_sendErorrIndication(eNB_TransportAddress* srcAddress, SDS_UINT16 a_SenderPortNum, SDS_UINT32 a_TEID)
+
+  \param[in]      eNB_TransportAddress* srcAddress : IP of the sender peer.
+  \param[in]      SDS_UINT16 a_SenderPortNum : sender port number.
+  \param[in]      SDS_UINT32 a_TEID : tunnel ID received in the message.
+
+  \brief          Sends error indication message when the received message has no context.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC void GTP_sendErorrIndication(eNB_TransportAddress* srcAddress, SDS_UINT16 a_SenderPortNum, SDS_UINT32 a_TEID);
+
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             void GTP_HandleErorrIndication(eNB_TransportAddress* srcAddress, SDS_UINT32 a_TEID)
+
+  \param[in]      eNB_TransportAddress* srcAddress : IP of the sender peer.
+  \param[in]      SDS_UINT32 a_TEID : tunnel ID that this meesage belongs to.
+
+  \brief          Handle error indication message reception be requesting RB release from RRC.
+
+  \return         void
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC void GTP_HandleErorrIndication(eNB_TransportAddress* srcAddress, SDS_UINT32 a_TEID);
