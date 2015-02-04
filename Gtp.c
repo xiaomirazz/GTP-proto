@@ -256,3 +256,186 @@ SDS_STATIC void GTP_sendErorrIndication(eNB_TransportAddress* srcAddress, SDS_UI
 */
 /*------------------------------------------------------------------------------------------------*/
 SDS_STATIC void GTP_HandleErorrIndication(eNB_TransportAddress* srcAddress, SDS_UINT32 a_TEID);
+/*------------------------------------------------------------------------------------------------*/
+/*!
+  \fn             GTP_PacketStatus GTP_PolicingAlgorithm(GTP_TunnelRecord* a_tunnelRecord_Ptr,GTP_TunnelContext* a_tunnelContext_Ptr,SDS_UINT16 a_receivedLength)
+
+  \param[in]      GTP_TunnelRecord* a_tunnelRecord_Ptr : Pointer to tunnel record.
+  \param[in]      GTP_TunnelContext* a_tunnelContext_Ptr : Pointer to tunnel context.
+  \param[in]      SDS_UINT16 a_receivedLength : received packet length.
+
+  \brief          Decides whether this packet will be discarded or processed according to the bit rate
+                  allowed to this RB.
+
+  \return         GTP_PacketStatus
+
+  \b See \b Also: <related functions, data structures, global variables>
+*/
+/*------------------------------------------------------------------------------------------------*/
+SDS_STATIC GTP_PacketStatus GTP_PolicingAlgorithm(GTP_TunnelRecord* a_tunnelRecord_Ptr,GTP_TunnelContext* a_tunnelContext_Ptr,SDS_UINT16 a_receivedLength);
+
+/*- FUNCTION DEFINITIONS -------------------------------------------------------------------------*/
+
+void GTP_init_Handler(GTP_U_init* a_msg_Ptr)
+{
+    SDS_UINT32                 i;
+    GTP_pathEchoRecord*        pathRecord_Ptr = NULL;
+    /*CROSS_REVIEW_habdallah_DONE use SDS_CHAR*/
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+    GTP_LOG_ID = LOGGER_REGISTER("GTP");
+    LOG_ENTER("GTP_init");
+
+
+    SKL_MESSAGE_HANDLER_REGISTER(INTERCOMP_MSG_ID_GTP_OPEN_TUNNEL_REQ,
+                                 GTP_openTunnel_Req_Handler,
+                                 NULL);
+
+    SKL_MESSAGE_HANDLER_REGISTER(INTERCOMP_MSG_ID_GTP_UPDATE_TUNNEL_REQ,
+                                 GTP_updateTunnel_Req_Handler,
+                                 NULL);
+
+    SKL_MESSAGE_HANDLER_REGISTER(INTERCOMP_MSG_ID_GTP_CLOSE_TUNNEL_REQ,
+                                 GTP_closeTunnel_Req_Handler,
+                                 NULL);
+
+    /* Register reset handler */
+    SKL_MESSAGE_HANDLER_REGISTER(INTERCOMP_MSG_ID_GTP_U_RESET,
+                                 GTP_reset_Handler,
+                                 NULL);
+
+    /* Register destroy handler */
+    SKL_MESSAGE_HANDLER_REGISTER(INTERCOMP_MSG_ID_GTP_U_DESTROY,
+                                 GTP_destroy_Handler,
+                                 NULL);
+
+    /* Register destroy handler */
+    SKL_MESSAGE_HANDLER_REGISTER(INTERCOMP_MSG_ID_GTP_T3_TIMER_EXPIRED,
+                                 GTP_T3_TimerExpRoutine,
+                                 NULL);
+
+
+    /* Register skeleton message handler */
+    QUEUE_MANAGER_REGISTER_HANDLER(QUEUE_ID_RX_PDCP_GTP,
+                                 GTP_Rx_PDCP_data_Handler);
+
+    /* Register skeleton message handler */
+    QUEUE_MANAGER_REGISTER_HANDLER(QUEUE_ID_TX_GTP_AL_TO_GTP,
+                                 GTP_Rx_NWK_data_Handler);
+
+    /*Cross_Review_R2.0_vsafwat: I renamed this queue ID to become:QUEUE_ID_RX_PDCP_GTP_S_ENB_FWD
+     * notice that GTP also will have another queue that needs to be registered in which
+     * PDCP_TX posts forwarded TX_SDUs (its name in queue manager is QUEUE_ID_TX_PDCP_GTP_S_ENB_FWD
+     */
+    /* Register skeleton message handler */
+    QUEUE_MANAGER_REGISTER_HANDLER(QUEUE_ID_TX_PDCP_GTP_S_ENB_FWD,
+                                   GTP_Rx_PDCP_TX_FWD_data_Handler);
+
+    /* Register skeleton message handler */
+    QUEUE_MANAGER_REGISTER_HANDLER(QUEUE_ID_RX_PDCP_GTP_S_ENB_FWD,
+                                   GTP_Rx_PDCP_RX_FWD_data_Handler);
+
+    /* DONE_WALK_THROUGH_R2.0_ratef_Oct 17, 2010: allocate g_GTP_Ptr in global to be
+     * allocated in init
+     */
+    /* Initialize private data*/
+    SKL_MEMORY_ALLOC(SKL_GET_MEMORY_SEGMENT_FOR_TASK(),  sizeof(*g_GTP_Ptr) ,g_GTP_Ptr);
+
+    /* Setting the maximum number of ERABS*/
+    g_GTP_Ptr->tunnelRecordsNumber = a_msg_Ptr->maxBearerIndex/*maximumNumberOf_RBs*/;
+
+    /* Allocate GTP_TunnelsRecord with the maximum number ERABS sent in the configurations*/
+    /*CROSS_REVIEW_habdallah_DONE, we need to allocate array of pointers and pool, this array should
+     * be allocated with max bearer index which should passed by OCM, check RLC_TX as an example*/
+
+    /* DONE_WALK_THROUGH_R2.0_ratef_Oct 17, 2010: it is not correct to allocate the
+     * pool with a_msg_Ptr->maxBearerIndex. it has to be allocated by  maximumNumberOf_RBs
+     * */
+    SKL_FIXED_SIZE_POOL_INIT(g_GTP_Ptr->tunnelRecordsPool_Ptr,
+                                 DEDICATED,
+                                 SKL_GET_MEMORY_SEGMENT_FOR_TASK(),
+                                 (a_msg_Ptr->maximumNumberOf_RBs),
+                                 sizeof(GTP_TunnelRecord),
+                                 "GTP Tunnel records pool");
+
+    /* DONE_WALK_THROUGH_R2.0_ratef_Oct 17, 2010: size of pool = (maximumNumberOf_RBs * 2 to account for bi-dir RBs)+
+     *  (new config:concurrent forwarding bearers *2)
+     */
+    SKL_FIXED_SIZE_POOL_INIT(g_GTP_Ptr->tunnelContextPool_Ptr,
+                                 DEDICATED,
+                                 SKL_GET_MEMORY_SEGMENT_FOR_TASK(),
+                                 NUMBER_2 * ( a_msg_Ptr->maximumNumberOf_RBs +
+                                                 a_msg_Ptr->maximumNumberOfConcurrentForwardingBearers ),
+                                 sizeof(GTP_TunnelContext),
+                                 "GTP Tunnel contexts pool");
+
+    /*UE records Pool*/
+    SKL_FIXED_SIZE_POOL_INIT(g_GTP_Ptr->UERecordsPool_Ptr,
+                                 DEDICATED,
+                                 SKL_GET_MEMORY_SEGMENT_FOR_TASK(),
+                                 a_msg_Ptr->maxNumberOfUEs,
+                                 sizeof(GTP_UE_Record),
+                                 "GTP UE records pool");
+
+    g_GTP_Ptr->numberOfUEs = a_msg_Ptr->maxNumberOfUEs;
+
+    /* Allocate TunnelRecord array with maximum number of bearer index */
+    SKL_MEMORY_ALLOC(SKL_GET_MEMORY_SEGMENT_FOR_TASK(),
+                         (a_msg_Ptr->maxBearerIndex)*(sizeof(TunnelRecord*)),
+                         g_GTP_Ptr->tunnelsRecord);
+
+    /*allocate UE records array*/
+    SKL_MEMORY_ALLOC(SKL_GET_MEMORY_SEGMENT_FOR_TASK(),
+                         (a_msg_Ptr->maxNumberOfUEs)*(sizeof(GTP_UE_Record*)),
+                         g_GTP_Ptr->UEsRecordsArray_Ptr);
+
+    /* Initialize timer T3_RESPONSE as a periodic timer with period T3_RESPONSE_PERIOD*/
+
+    SKL_TIMER_INIT(g_GTP_Ptr->T3_timer_Ptr, WRP_TT_PERIODIC, "T3_Timer");
+
+    /* Initialize the Echo requests and response handling list*/
+    SKL_LINKED_LIST_INIT(g_GTP_Ptr->echoPath_List_Ptr,"GTP path Echo list");
+
+    /* DONE_WALK_THROUGH_R2.0_ratef_Oct 17, 2010: new config: maxNmberOfActiveGTP_Paths to allocate this pool*/
+    SKL_FIXED_SIZE_POOL_INIT(g_GTP_Ptr->pathEchoRecordsPool_Ptr,
+                                 DEDICATED,
+                                 SKL_GET_MEMORY_SEGMENT_FOR_TASK(),
+                                 a_msg_Ptr->maxNumberOfActiveGTP_Paths,
+                                 sizeof(GTP_pathEchoRecord),
+                                 "GTP Echo path records");
+
+    g_GTP_Ptr->numberOfPaths = a_msg_Ptr->maxNumberOfActiveGTP_Paths;
+
+    for (i = ZERO; i < a_msg_Ptr->maxNumberOfActiveGTP_Paths; i++)
+    {
+
+        SKL_FIXED_SIZE_BUFF_ALLOC(g_GTP_Ptr->pathEchoRecordsPool_Ptr,
+                                  DEDICATED,
+                                  sizeof(*pathRecord_Ptr),
+                                  pathRecord_Ptr);
+
+        SKL_LINKED_LIST_INIT(pathRecord_Ptr->tunnel_List_Ptr,"GTP path Echo list");
+
+        SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->pathEchoRecordsPool_Ptr, DEDICATED, pathRecord_Ptr);
+
+    } /*for*/
+
+    /* Set the eNB own IP address */
+    g_GTP_Ptr->eNB_IpAddress = a_msg_Ptr->GTP_ENB_TransportAddress;
+
+    /* Set the T3_Response time*/
+    g_GTP_Ptr->T3_RESPONSE_numberOfTicks = a_msg_Ptr->T3_RESPONSE_waitTime / ECHO_TIMER_STEP ;
+
+    /*Set the ECHO request period equivalent ticks */
+    g_GTP_Ptr->ECHO_requestPeriod_numberOfTicks = a_msg_Ptr->ECHOrequestPeriod / ECHO_TIMER_STEP;
+
+#ifdef T1_TEST
+    g_GTP_Ptr->ECHO_requestPeriod_numberOfTicks = t3_scale_factor;
+#endif
+
+    /* Set N3_Requests */
+    g_GTP_Ptr->N3_Requests = a_msg_Ptr->N3_Requests;
+
+/*function_exit:*/
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+    LOG_EXIT("GTP_init");
+}
