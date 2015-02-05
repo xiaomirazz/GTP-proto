@@ -439,3 +439,147 @@ void GTP_init_Handler(GTP_U_init* a_msg_Ptr)
     /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
     LOG_EXIT("GTP_init");
 }
+void GTP_destroy_Handler(GTP_U_destroy *a_msg_Ptr)
+{
+    SDS_UINT32              i;
+    GTP_pathEchoRecord*     removedPathEchoRecord_ptr;
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+    LOG_ENTER("GTP_destroy_Handler");
+
+    /* DONE_WALK_THROUGH_R2.0_ratef_Oct 19, 2010: move this cleanup part before
+     * calling de-register queues in order t be able to use same handlers
+     * to discard the packets instead of serving them
+     */
+    for (i = 0; i < g_GTP_Ptr->tunnelRecordsNumber; i++)
+    {
+        if(NULL != g_GTP_Ptr->tunnelsRecord[i])
+        {
+            if(NULL != g_GTP_Ptr->tunnelsRecord[i]->DL_Tunnel_Ptr)
+            {
+                /* Release the context*/
+                SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->tunnelContextPool_Ptr,
+                    DEDICATED,
+                    g_GTP_Ptr->tunnelsRecord[i]->DL_Tunnel_Ptr);
+            }
+            if(NULL != g_GTP_Ptr->tunnelsRecord[i]->FWD_DL_Tunnel_Ptr)
+            {
+                /* Release the context*/
+                SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->tunnelContextPool_Ptr,
+                    DEDICATED,
+                    g_GTP_Ptr->tunnelsRecord[i]->FWD_DL_Tunnel_Ptr);
+            }
+            if(NULL != g_GTP_Ptr->tunnelsRecord[i]->UL_Tunnel_Ptr)
+            {
+                /* Release the context*/
+                SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->tunnelContextPool_Ptr,
+                    DEDICATED,
+                    g_GTP_Ptr->tunnelsRecord[i]->UL_Tunnel_Ptr);
+            }
+            if(NULL != g_GTP_Ptr->tunnelsRecord[i]->FWD_UL_Tunnel_Ptr)
+            {
+                /* Release the context*/
+                SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->tunnelContextPool_Ptr,
+                    DEDICATED,
+                    g_GTP_Ptr->tunnelsRecord[i]->FWD_UL_Tunnel_Ptr);
+            }
+
+            LOG_BRANCH("Remove the record");
+            /* Release the context*/
+            SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->tunnelRecordsPool_Ptr,
+                DEDICATED,
+                g_GTP_Ptr->tunnelsRecord[i]);
+        } /*if(Remove the record)*/
+    } /*for*/
+
+    for (i = ZERO; i < g_GTP_Ptr->numberOfUEs; i++)
+    {
+        if(NULL != g_GTP_Ptr->UEsRecordsArray_Ptr[i])
+        {
+            LOG_BRANCH("UE Record exist");
+            SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->UERecordsPool_Ptr,
+                                        DEDICATED,
+                                        g_GTP_Ptr->UEsRecordsArray_Ptr[i]);
+        } /*if(UE Record exist)*/
+    } /*for*/
+
+    /* DONE_WALK_THROUGH_R2.0_ratef_Oct 19, 2010: move queue de-registration here */
+
+    /* De-register skeleton message handler */
+    QUEUE_MANAGER_DEREGISTER_HANDLER(QUEUE_ID_RX_PDCP_GTP,
+                    GTP_Rx_PDCP_data_Handler);
+
+    /* De-register skeleton message handler */
+    QUEUE_MANAGER_DEREGISTER_HANDLER(QUEUE_ID_TX_GTP_AL_TO_GTP,
+                    GTP_Rx_NWK_data_Handler);
+
+
+    /* De-register skeleton message handler */
+    QUEUE_MANAGER_DEREGISTER_HANDLER(QUEUE_ID_TX_PDCP_GTP_S_ENB_FWD,
+                                   GTP_Rx_PDCP_TX_FWD_data_Handler);
+
+    /* De-register skeleton message handler */
+    QUEUE_MANAGER_DEREGISTER_HANDLER(QUEUE_ID_RX_PDCP_GTP_S_ENB_FWD,
+                                   GTP_Rx_PDCP_RX_FWD_data_Handler);
+
+    /* Destroy Tunnel Context Pool */
+    SKL_FIXED_SIZE_POOL_DESTROY(g_GTP_Ptr->tunnelContextPool_Ptr,DEDICATED);
+
+    /* Destroy Tunnel Record Pool */
+    SKL_FIXED_SIZE_POOL_DESTROY(g_GTP_Ptr->tunnelRecordsPool_Ptr,DEDICATED);
+
+    /*UE records pool*/
+    SKL_FIXED_SIZE_POOL_DESTROY(g_GTP_Ptr->UERecordsPool_Ptr,DEDICATED);
+
+    /* De-allocate GTP_TunnelsRecord */
+    SKL_MEMORY_FREE(g_GTP_Ptr->tunnelsRecord);
+
+    /*Deallocate UE records array*/
+    SKL_MEMORY_FREE(g_GTP_Ptr->UEsRecordsArray_Ptr);
+
+    /* DONE_WALK_THROUGH_R2.0_ratef_Oct 19, 2010: move the destroy of echoPath_List_Ptr after
+     * releasing all elements
+     */
+
+    /* Releasing all allocated echo path records buffers */
+    SKL_LINKED_LIST_GET_AND_REMOVE_FIRST(g_GTP_Ptr->echoPath_List_Ptr,removedPathEchoRecord_ptr);
+    while(NULL != removedPathEchoRecord_ptr)
+    {
+        /* Release the allocated structure*/
+        SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->pathEchoRecordsPool_Ptr, DEDICATED, removedPathEchoRecord_ptr);
+
+        SKL_LINKED_LIST_GET_AND_REMOVE_FIRST(g_GTP_Ptr->echoPath_List_Ptr,removedPathEchoRecord_ptr);
+
+    } /*while(NULL != removedPathEchoRecord_ptr)*/
+
+    for (i = ZERO; i < g_GTP_Ptr->numberOfPaths; i++)
+    {
+        SKL_FIXED_SIZE_BUFF_ALLOC(g_GTP_Ptr->pathEchoRecordsPool_Ptr,
+                                  DEDICATED,
+                                  sizeof(*removedPathEchoRecord_ptr),
+                                  removedPathEchoRecord_ptr);
+
+        SKL_LINKED_LIST_DESTROY(removedPathEchoRecord_ptr->tunnel_List_Ptr);
+
+        SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->pathEchoRecordsPool_Ptr, DEDICATED, removedPathEchoRecord_ptr);
+    } /*for*/
+
+    /* Destroy Echo path Records pool */
+    SKL_FIXED_SIZE_POOL_DESTROY(g_GTP_Ptr->pathEchoRecordsPool_Ptr,DEDICATED);
+
+    /* Destroy the ECHO paths linked list */
+    SKL_LINKED_LIST_DESTROY(g_GTP_Ptr->echoPath_List_Ptr);
+
+    /*DONE_walkthrough_R2.0_Oct 31, 2010_root: stop T3_timer_Ptr before destroy */
+    /*Stop the timer*/
+    SKL_TIMER_STOP(g_GTP_Ptr->T3_timer_Ptr);
+
+    /*Destroy the timer*/
+    SKL_TIMER_DESTROY(g_GTP_Ptr->T3_timer_Ptr);
+
+    /* DONE_WALK_THROUGH_R2.0_ratef_Oct 19, 2010: destroy the GTP global structure*/
+    /* Free the component structure */
+    SKL_MEMORY_FREE(g_GTP_Ptr);
+
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+    LOG_EXIT("GTP_destroy_Handler");
+}
