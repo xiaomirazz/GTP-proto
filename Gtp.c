@@ -682,3 +682,84 @@ void GTP_reset_Handler(GTP_U_reset *a_msg_Ptr)
     /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
     LOG_EXIT("GTP_reset_Handler");
 }
+void GTP_Rx_NWK_data_Handler(SDS_UINT32 a_SDUsToServe)
+{
+    GTP_SDU*        receivedGTP_desc_Ptr;
+    GTP_HEADER      gtpPacket;
+    SDS_UINT32      decodedBytesNumber;
+    SDS_UINT8*      packetStart_Ptr;
+    SDS_UINT32      payloadOffset;
+    SDS_UINT32      processedBytesNumber;
+    SDS_BOOL        decodeResult;
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+    LOG_ENTER("GTP_Rx_NWK_data_Handler");
+
+    /* Initialize the Ptr */
+    receivedGTP_desc_Ptr = NULL;
+
+    LOG_ASSERT(a_SDUsToServe > 0, "SDUs requested to be handled <= 0");
+    LOG_TRACE_ARG("no of GTP SDUs = %d",a_SDUsToServe,0,0);
+    do
+    {
+
+        /* Extract the SDU from queue */
+        QUEUE_MANAGER_DEQUEUE(QUEUE_ID_TX_GTP_AL_TO_GTP, receivedGTP_desc_Ptr);
+        LOG_ASSERT(NULL != receivedGTP_desc_Ptr, "GTP_AL TX Queue is empty");
+
+        LOG_TRACE("Handle Data from GTP_AL");
+
+
+        /* Initialize processedBytesNumber */
+        processedBytesNumber = ZERO;
+        /* Initialize tempEnqueuedSDUsCount*/
+        g_GTP_Ptr->tempEnqueuedSDUsCount = ZERO;
+
+        while(receivedGTP_desc_Ptr->rawData_buffer_Length > processedBytesNumber)
+        {
+            /* Set the start of the new packet to be handled*/
+            packetStart_Ptr = receivedGTP_desc_Ptr->rawData_buffer_Ptr + processedBytesNumber;
+
+            /*DONE_walkthrough_R2.0_Oct 25, 2010_root: decode and process for n packets
+             * as long as the receivedLength is non-zero (while on receivedlength)
+             */
+            /* Calling the decode function to decode the received packet */
+            decodedBytesNumber = GTP_decodePacket(packetStart_Ptr,receivedGTP_desc_Ptr->rawData_buffer_Length-processedBytesNumber,
+                &gtpPacket, &decodeResult);
+
+            /* Update processedBytesNumber */
+            processedBytesNumber += decodedBytesNumber;
+
+            if(FALSE == decodeResult)
+            {
+                LOG_BRANCH("Failed to decode GTP message");
+                continue;
+            } /*if(Failed to decode GTP message)*/
+
+            /* Set the payload offset which indicates the length of the decoded GTP header (including mandatory and optional header fields)*/
+            payloadOffset = decodedBytesNumber - gtpPacket.length;
+
+            /*DONE_walkthrough_R2.0_Oct 25, 2010_root: processPacket should take the
+             * - pointer to address received GTP_desc_Ptr->rawData_buffer
+             * - length of the decoded header
+             * - payload length (already in gtpPacket)
+             */
+            /* Process the packet*/
+            GTP_processPacket(&gtpPacket,packetStart_Ptr,payloadOffset,receivedGTP_desc_Ptr);
+
+        } /*while(receivedGTP_desc_Ptr->rawData_buffer_Length > processedBytesNumber)*/
+
+        /*DONE_walkthrough_R2.0_Oct 25, 2010_root: called outside the while loop of decode */
+        receivedGTP_desc_Ptr->enqueuedSDUsCount = g_GTP_Ptr->tempEnqueuedSDUsCount;
+        /* Free the Descriptor */
+        FREE_GTP_SDU(receivedGTP_desc_Ptr);
+
+        a_SDUsToServe--;
+
+    } while(a_SDUsToServe !=0);
+    /*CROSS_REVIEW_habdallah_DONE apply guildlines on while condition*/
+
+
+/*function_exit:*/
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+    LOG_EXIT("GTP_Rx_NWK_data_Handler");
+}
