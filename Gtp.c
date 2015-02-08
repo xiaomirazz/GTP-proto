@@ -763,3 +763,121 @@ void GTP_Rx_NWK_data_Handler(SDS_UINT32 a_SDUsToServe)
     /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
     LOG_EXIT("GTP_Rx_NWK_data_Handler");
 }
+void GTP_Rx_PDCP_data_Handler(SDS_UINT32 a_SDUsToServe)
+{
+
+    RX_RLC_SDU_Desc*                receivedRLC_desc_Ptr;
+    SDS_Status                      status;
+    SDS_Status                      transmissionStatus;
+    GTP_HEADER                      gtpPacket;
+    GTP_TunnelContext*              ulTunnel_Ptr;
+    SDS_BOOL32                      tunnelRecordExists;
+    SDS_INT32                       encodedHeaderLength;
+    SDS_UINT8*                      startOfPacket;
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+
+    /*CROSS_REVIEW_habdallah_DONE when dealing with data use SDS_UINT8 instead of SDS_CHAR*/
+
+    LOG_ENTER("GTP_Rx_PDCP_data_Handler");
+
+    LOG_ASSERT(a_SDUsToServe > 0, "SDUs requested to be handled <= 0");
+
+    /* Fill the constant part in the GTP header */
+    FILL_CONSTANT_PART_IN_GTP_PACKET(gtpPacket);
+
+    /*CROSS_REVIEW_habdallah_DONE ? As no memory allocation is allowed, we may have fixed buffer to
+     * use */
+    do
+    {
+        /* Extract the SDU from queue */
+        QUEUE_MANAGER_DEQUEUE(QUEUE_ID_RX_PDCP_GTP, receivedRLC_desc_Ptr);
+        LOG_ASSERT(NULL != receivedRLC_desc_Ptr, "RX_PDCP_GTP Queue is empty");
+
+        ulTunnel_Ptr = NULL ;
+        tunnelRecordExists = (NULL != g_GTP_Ptr->tunnelsRecord[receivedRLC_desc_Ptr->bearerIndex]);
+        if(TRUE == tunnelRecordExists)
+        {
+            /* Get a pointer to the tunnel context*/
+            ulTunnel_Ptr = g_GTP_Ptr->tunnelsRecord[receivedRLC_desc_Ptr->bearerIndex]->UL_Tunnel_Ptr;
+        } /*if(if_branch_string)*/
+
+        if((TRUE == tunnelRecordExists) && (NULL !=ulTunnel_Ptr))
+        {
+            LOG_BRANCH("UL tunnel with the specified TEID exists");
+
+            /* Set msg_Ptr in GTP Packet to the raw data + offset */
+
+            /* Set the length of the data in the GTP packet  */
+            gtpPacket.length = receivedRLC_desc_Ptr->rawDataLength;
+
+            /* Set the TEID in the GTP Packet*/
+            gtpPacket.TEID = ulTunnel_Ptr->TEID;
+
+            /* Set the Sequence number and increment the expected sequence number for next time */
+            gtpPacket.sequenceNumber = ulTunnel_Ptr->expectedSeqNumber++;
+
+            /* Reset encoded header length */
+            encodedHeaderLength = ZERO;
+
+            /* Call encode function  */
+            encodedHeaderLength = GTP_encodePacket(&gtpPacket,
+                                                    receivedRLC_desc_Ptr->rawDataBuff_Ptr,
+                                                    receivedRLC_desc_Ptr->data_Offset);
+
+            if(encodedHeaderLength != -1)
+            {
+                /* Set the pointer to the start of the GTP packet*/
+                startOfPacket = receivedRLC_desc_Ptr->rawDataBuff_Ptr + receivedRLC_desc_Ptr->data_Offset - encodedHeaderLength;
+
+                /* Call upper layer  function to send GTP packet */
+                GTP_TX_NWK(startOfPacket, receivedRLC_desc_Ptr->rawDataLength+encodedHeaderLength ,
+                    (&(ulTunnel_Ptr->pathRecord_Ptr->pathAddress)), FALSE,&transmissionStatus) ;
+
+                if(WRP_SUCCESS == transmissionStatus)
+                {
+                    LOG_BRANCH("Packet is transmitted successfully");
+                    STATS_GTP_INCREMENT_TOTAL_SENT_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+                } /*if(Packet is transmitted successfully)*/
+                else
+                {
+                    LOG_BRANCH("Failed to send data on socket");
+                    STATS_GTP_RX_INCREMENT_DROPPED_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+                } /*else (Failed to send data on socket)*/
+
+            } /*if(Header created successfully )*/
+            else
+            {
+                LOG_ERROR("Error occurred , Failed to create GTP header because Buffer offset is not enough! ");
+                /*statistics - dropped packet */
+                STATS_GTP_RX_INCREMENT_DROPPED_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+            } /*else (else_branch_string)*/
+        } /*if (UL tunnel with the specified TEID exists)*/
+        else
+        {
+            LOG_BRANCH("Invalid GTP TEID");
+            /* The GTP tunnel was not established */
+            /* statistics - dropped packet because tunnel is closed */
+            STATS_GTP_RX_INCREMENT_DROPPED_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+        } /*else (Invalid GTP TEID)*/
+
+        /* After posting the buffer to be sent by the test layer
+         * we can now put the RX_RLC_SDU_Desc descriptor to the free queue QUEUE_ID_RX_PDCP_FREE
+         * using QUEUE_MANAGER_ENQUEUE macro
+         */
+        QUEUE_MANAGER_ENQUEUE(QUEUE_ID_RX_PDCP_FREE, receivedRLC_desc_Ptr, &status);
+        if(WRP_SUCCESS != status)
+        {
+            LOG_EXCEPTION("Failed to Enqueue RX_RLC_SDU_Desc in PDCP_RX Free queue");
+            /*DONE_CROSS_REVIEW_habdallah * needs to free data*/
+        }
+
+        LOG_TRACE("Freeing SDU Descriptor");
+        a_SDUsToServe--;
+
+    } while(a_SDUsToServe !=0);
+
+
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+
+    LOG_EXIT("GTP_Rx_PDCP_data_Handler");
+}
