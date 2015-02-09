@@ -881,3 +881,227 @@ void GTP_Rx_PDCP_data_Handler(SDS_UINT32 a_SDUsToServe)
 
     LOG_EXIT("GTP_Rx_PDCP_data_Handler");
 }
+void GTP_Rx_PDCP_TX_FWD_data_Handler(SDS_UINT32 a_SDUsToServe)
+{
+
+    TX_RLC_SDU_Desc*                receivedRLC_desc_Ptr;
+    GTP_HEADER                      gtpPacket;
+    GTP_TunnelContext*              fwdDlTunnel_Ptr;
+    SDS_BOOL32                      tunnelRecordExist;
+    RRC_DataForwardingFinished*     RRC_DataForwardingFinished_Ptr;
+    SDS_INT32                       encodedHeaderLength;
+    SDS_UINT8*                      startOfPacket;
+    SDS_BOOL                        MSG_MORE_flag;
+    SDS_Status                      transmissionStatus;
+
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+
+    LOG_ENTER("GTP_Rx_PDCP_TX_data_Handler");
+
+    LOG_ASSERT(a_SDUsToServe > 0, "SDUs requested to be handled <= 0");
+
+    /**************** Fill the constant part in GTP_PACKET ******************/
+    /*DONE_walkthrough_R2.0_Oct 24, 2010_root: use sequenceNumberFlag */
+    FILL_CONSTANT_PART_IN_GTP_PACKET(gtpPacket);
+
+    /* PDCP SN required only in FWD case */
+    gtpPacket.extensionHeadersArray[ZERO].type = PDCP_PDU_NUMBER;
+
+    gtpPacket.extensionHeadersArray[ZERO].length = GTP_PDCP_EXTENSION_HEADER_LENGTH;
+    gtpPacket.extensionHeadersArray[NUMBER_1].type = NO_MORE_HEADERS;
+
+    /************************************************************************/
+
+    do
+    {
+        /*Cross_Review_R2.0_vsafwat: use QUEUE_ID_RX_PDCP_GTP_S_ENB_FWD .. see comment in init */
+        /* Extract the SDU from queue */
+        QUEUE_MANAGER_DEQUEUE(QUEUE_ID_TX_PDCP_GTP_S_ENB_FWD, receivedRLC_desc_Ptr);
+        LOG_ASSERT(NULL != receivedRLC_desc_Ptr, "TX_PDCP_GTP_S_ENB_FWD Queue is empty");
+
+
+        /* DONE_WALK_THROUGH_R2.0_ratef_Oct 19, 2010: if g_GTP_Ptr->tunnelsRecord[bearerIndex] = NULL
+         * you can't access the FWD_DL_Tunnel_Ptr
+         * apply in all other cases
+         */
+
+        fwdDlTunnel_Ptr = NULL;
+
+        tunnelRecordExist = (g_GTP_Ptr->tunnelsRecord[receivedRLC_desc_Ptr->bearerIndex] != NULL);
+        if (TRUE == tunnelRecordExist)
+        {
+            /* Get a pointer to the tunnel context*/
+            fwdDlTunnel_Ptr = g_GTP_Ptr->tunnelsRecord[receivedRLC_desc_Ptr->bearerIndex]->FWD_DL_Tunnel_Ptr;
+        }
+
+        /* Check if the specified tunnel exist */
+        if(NULL != fwdDlTunnel_Ptr)
+        {
+            LOG_BRANCH("DL tunnel with the specified TEID exists");
+
+            /* -------------- Fill GTP Packet --------------------*/
+
+            /* Set the length of the data in the GTP packet */
+            gtpPacket.length = receivedRLC_desc_Ptr->rawDataLength;
+
+            /* Set the TEID in the GTP Packet*/
+            gtpPacket.TEID = fwdDlTunnel_Ptr->TEID;
+
+            /* Set the Sequence number */
+            gtpPacket.sequenceNumber = fwdDlTunnel_Ptr->expectedSeqNumber++;
+
+            /* Check if we should put SN in the packet */
+            if(TRUE == receivedRLC_desc_Ptr->read_SN)
+            {
+                LOG_BRANCH("Should read SN");
+                /* Add PDCP sequence number */
+                gtpPacket.extensionHeadersArray[ZERO].content =
+                    PDCP_CALCULATE_SN_FROM_COUNT(receivedRLC_desc_Ptr->count,STD_DRB_AM_SN_LENGTH);
+                /* Set the extension header flag to true*/
+                gtpPacket.extensionFlag = TRUE;
+            } /*if(Should read SN)*/
+            /* -------------------------------------------------- */
+
+            /* Handle End Marker SDU */
+            if(receivedRLC_desc_Ptr->isEndMarker == TRUE)
+            {
+                LOG_BRANCH("SDU is End Marker");
+                gtpPacket.msgType = GTP_MSG_TYPE_END_MARKER;
+
+
+                /* TODO_memad : maybe changed to a macro as its also used in GTP_RX_PDCP_RX*/
+                /*-------- Sending RRC_DataForwardingFinished to RRC ----------*/
+                SKL_ALLOC_INTERCOMP_MESSAGE(RRC_DataForwardingFinished_Ptr);
+
+                LOG_ASSERT_WITH_EXCEPTION(EXCEPTION_INTER_COMP_MSG_ALLOC_FAILED,
+                    NULL != RRC_DataForwardingFinished_Ptr,
+                    "Failed to allocate inter component message");
+
+                /*DONE_walkthrough_R2.0_Oct 25, 2010_root: this is DL forwarding
+                 * DL forwarding = true and UL forward = false
+                 */
+                /* Set the flag that indicates that the  */
+                RRC_DataForwardingFinished_Ptr->isDL_forwardingFinished = TRUE;
+
+                RRC_DataForwardingFinished_Ptr->isDL_forwardingFinished = FALSE;
+
+                /* Set the radio bearer */
+                RRC_DataForwardingFinished_Ptr->rb_Index = receivedRLC_desc_Ptr->bearerIndex;
+
+                SEND_RRC_DATA_FORWARDING_FINISHED(RRC_DataForwardingFinished_Ptr,
+                    SKL_SENDING_METHOD_DEFAULT);
+                /*-------------------------------------------------------------*/
+
+                /*DONE_walkthrough_R2.0_Oct 25, 2010_root: don't free the end marker
+                 * it has to be kept a PDCP_TX
+                 */
+
+            } /*if(SDU is End Marker)*/
+
+            /*DONE_walkthrough_R2.0_Oct 25, 2010_root: move encode and end to NWK outside
+             * the if/else
+             */
+
+            /* NOTE:
+             * Here a problem arouses which is that the offset in the handled descriptor will not be enough to fit the GTP header with the extension header
+             * As a solution to this problem, we use the MSG_MORE flag option in the sendto() API. This option allows us to send data indicating that there
+             * will be more data related to it to follow, hence the data is not sent immediately on the socket,but will be concatenated with the comming one
+             * until we call the sendto() without specifying the MSG_MORE option flag.
+             */
+
+            /* First we send the GTP Header */
+            /* Call encode function  */
+            encodedHeaderLength = GTP_encodePacket(&gtpPacket ,g_GTP_Ptr->tempGTPheaderBuff,sizeof(g_GTP_Ptr->tempGTPheaderBuff));
+
+            if(encodedHeaderLength != -1)
+            {
+                /* Set the pointer to the start of the GTP Header*/
+                startOfPacket = g_GTP_Ptr->tempGTPheaderBuff + sizeof(g_GTP_Ptr->tempGTPheaderBuff) - encodedHeaderLength;
+
+                if (ZERO != receivedRLC_desc_Ptr->rawDataLength)
+                {
+                    MSG_MORE_flag = TRUE;
+                }
+                else
+                {
+                    MSG_MORE_flag = FALSE;
+                }
+
+                /* Call upper layer  function to send GTP Header with the MSG_MORE_Flag set to TRUE, as the data will be sent next */
+                GTP_TX_NWK(startOfPacket,encodedHeaderLength ,(&(fwdDlTunnel_Ptr->pathRecord_Ptr->pathAddress)),MSG_MORE_flag, &transmissionStatus) ;
+
+                if(WRP_SUCCESS == transmissionStatus)
+                {
+                    LOG_BRANCH("Packet is transmitted successfully");
+                    STATS_GTP_INCREMENT_TOTAL_SENT_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+                } /*if(Packet is transmitted successfully)*/
+                else
+                {
+                    LOG_BRANCH("Failed to send data on socket");
+                    STATS_GTP_RX_INCREMENT_DROPPED_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+                } /*else (Failed to send data on socket)*/
+
+            } /*if(Header created successfully  )*/
+            else
+            {
+                LOG_ERROR("Error occurred , Failed to encode GTP header because Buffer size is not enough! ");
+                /* TODO_memad : statistics - dropped packet */
+            } /*else (else_branch_string)*/
+
+            if(ZERO != receivedRLC_desc_Ptr->rawDataLength)
+            {
+                LOG_BRANCH("the data length is not zero case end marker ");
+                /* Now we send the data */
+                /* Set the pointer to the start of the data to be sent*/
+                startOfPacket = receivedRLC_desc_Ptr->rawDataBuff_Ptr + receivedRLC_desc_Ptr->rawDataOffset;
+
+                /* Call upper layer  function to send data. Notice that the MSG_MORE_Flag is set to FALSE, which means that the GTP_AL will concatenate
+                 * this data to the previous GTP header and send it as a complete packet   */
+                GTP_TX_NWK(startOfPacket,receivedRLC_desc_Ptr->rawDataLength ,(&(fwdDlTunnel_Ptr->pathRecord_Ptr->pathAddress)),FALSE, &transmissionStatus) ;
+
+                if(WRP_SUCCESS == transmissionStatus)
+                {
+                    LOG_BRANCH("Packet is transmitted successfully");
+                    STATS_GTP_INCREMENT_TOTAL_SENT_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+                } /*if(Packet is transmitted successfully)*/
+                else
+                {
+                    LOG_BRANCH("Failed to send data on socket");
+                    STATS_GTP_RX_INCREMENT_DROPPED_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+                } /*else (Failed to send data on socket)*/
+
+            } /*if(the data length is not zero case end marker )*/
+        } /*if (UL tunnel with the specified TEID exists)*/
+        else
+        {
+            LOG_BRANCH("Invalid GTP TEID, tunnel not opened ");
+            /* The GTP tunnel was not established */
+            /* TODO_memad : statistics - dropped packet because tunnel is closed */
+        } /*else (Invalid GTP TEID)*/
+
+
+#if 0
+        /* After posting the buffer to be sent by the test layer
+         * we can now put the RX_RLC_SDU_Desc descriptor to the free queue QUEUE_ID_RX_PDCP_FREE
+         * using QUEUE_MANAGER_ENQUEUE macro
+         */
+        /*Cross_Review_R2.0_vsafwat: there is no special free queue for forwarding
+         * you need to use the normal free queue for QUEUE_ID_RX_PDCP_FREE */
+        /*QUEUE_MANAGER_ENQUEUE(QUEUE_ID_RX_PDCP_FWD_FREE, receivedRLC_desc_Ptr, &status);*/
+        QUEUE_MANAGER_ENQUEUE(QUEUE_ID_RX_PDCP_FREE, receivedRLC_desc_Ptr, &status);
+        if(WRP_SUCCESS != status)
+        {
+            LOG_EXCEPTION("Failed to Enqueue RX_RLC_SDU_Desc in PDCP_RX Free queue");
+        }
+
+        LOG_TRACE("Freeing SDU Descriptor");
+#endif
+        a_SDUsToServe--;
+
+    } while(a_SDUsToServe !=0);
+
+
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+
+    LOG_EXIT("GTP_Rx_PDCP_TX_data_Handler");
+}
