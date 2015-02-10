@@ -1105,3 +1105,148 @@ void GTP_Rx_PDCP_TX_FWD_data_Handler(SDS_UINT32 a_SDUsToServe)
 
     LOG_EXIT("GTP_Rx_PDCP_TX_data_Handler");
 }
+void GTP_Rx_PDCP_RX_FWD_data_Handler(SDS_UINT32 a_SDUsToServe)
+{
+
+    RX_RLC_SDU_Desc*                receivedRLC_desc_Ptr;
+    GTP_HEADER                      gtpPacket;
+    GTP_TunnelContext*              fwdUlTunnel_Ptr;
+    SDS_BOOL32                      tunnelRecordExists;
+    RRC_DataForwardingFinished*     RRC_DataForwardingFinished_Ptr;
+    SDS_INT32                       encodedHeaderLength;
+    SDS_UINT8*                      startOfPacket;
+    SDS_Status                      transmissionStatus;
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+
+    LOG_ENTER("GTP_Rx_PDCP_RX_data_Handler");
+
+    LOG_ASSERT(a_SDUsToServe > 0, "SDUs requested to be handled <= 0");
+
+    /**************** Fill the constant part in GTP_PACKET ******************/
+    /*DONE_walkthrough_R2.0_Oct 24, 2010_root: same as TX_PDCP fn*/
+    FILL_CONSTANT_PART_IN_GTP_PACKET(gtpPacket);
+
+    /* PDCP SN required or only in FWD case */
+    gtpPacket.extensionHeadersArray[ZERO].type= PDCP_PDU_NUMBER;
+
+    gtpPacket.extensionFlag = TRUE;
+
+    gtpPacket.extensionHeadersArray[ZERO].length = GTP_PDCP_EXTENSION_HEADER_LENGTH;
+    gtpPacket.extensionHeadersArray[NUMBER_1].type = NO_MORE_HEADERS;
+
+    /************************************************************************/
+
+    do
+    {
+        /* Extract the SDU from queue */
+        QUEUE_MANAGER_DEQUEUE(QUEUE_ID_RX_PDCP_GTP_S_ENB_FWD, receivedRLC_desc_Ptr);
+        LOG_ASSERT(NULL != receivedRLC_desc_Ptr, "RX_PDCP_GTP_S_ENB_FWD Queue is empty");
+
+        fwdUlTunnel_Ptr= NULL;
+        tunnelRecordExists = (NULL != g_GTP_Ptr->tunnelsRecord[receivedRLC_desc_Ptr->bearerIndex]);
+        if(TRUE == tunnelRecordExists)
+        {
+            /* Get a pointer to the tunnel context*/
+            fwdUlTunnel_Ptr = g_GTP_Ptr->tunnelsRecord[receivedRLC_desc_Ptr->bearerIndex]->FWD_UL_Tunnel_Ptr;
+        } /*if(Tunnel record exists)*/
+
+        /* Check if the specified tunnel exist */
+        if(NULL != fwdUlTunnel_Ptr)
+        {
+            LOG_BRANCH("UL tunnel with the specified TEID exists");
+
+            /* -------------- Fill GTP Packet --------------------*/
+
+            /* Set the length of the data in the GTP packet */
+            gtpPacket.length = receivedRLC_desc_Ptr->rawDataLength;
+
+            /* Set the TEID in the GTP Packet*/
+            gtpPacket.TEID = fwdUlTunnel_Ptr->TEID;
+
+            /* Set the Sequence number */
+            /*DONE_walkthrough_R2.0_Oct 24, 2010_root: the expectedSeqNumber should be U16*/
+            gtpPacket.sequenceNumber = fwdUlTunnel_Ptr->expectedSeqNumber++;
+
+            /* Add PDCP sequence number */
+            gtpPacket.extensionHeadersArray[ZERO].content = receivedRLC_desc_Ptr->PDCP_RX_SN;
+
+            /* -------------------------------------------------- */
+
+
+            /* Call encode function  */
+            encodedHeaderLength = GTP_encodePacket(&gtpPacket ,
+                                                    receivedRLC_desc_Ptr->rawDataBuff_Ptr,
+                                                    receivedRLC_desc_Ptr->data_Offset);
+            if(encodedHeaderLength != -1)
+            {
+                /* Set the pointer to the start of the GTP packet*/
+                startOfPacket = receivedRLC_desc_Ptr->rawDataBuff_Ptr + receivedRLC_desc_Ptr->data_Offset - encodedHeaderLength;
+
+                /* Call upper layer  function to send GTP packet */
+                GTP_TX_NWK(startOfPacket, receivedRLC_desc_Ptr->rawDataLength+encodedHeaderLength ,
+                    (&(fwdUlTunnel_Ptr->pathRecord_Ptr->pathAddress)),FALSE, &transmissionStatus) ;
+
+                if(WRP_SUCCESS == transmissionStatus)
+                {
+                    LOG_BRANCH("Packet is transmitted successfully");
+                    STATS_GTP_INCREMENT_TOTAL_SENT_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+                } /*if(Packet is transmitted successfully)*/
+                else
+                {
+                    LOG_BRANCH("Failed to send data on socket");
+                    STATS_GTP_RX_INCREMENT_DROPPED_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+                } /*else (Failed to send data on socket)*/
+
+            } /*if(Header created successfully  )*/
+            else
+            {
+                LOG_ERROR("Error occurred , Failed to create GTP header because Buffer offset is not enough! ");
+                /*statistics - dropped packet */
+                STATS_GTP_RX_INCREMENT_DROPPED_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+            } /*else (else_branch_string)*/
+
+
+            /* Check if this is the last Forwarding descriptor*/
+            if(TRUE == receivedRLC_desc_Ptr->LastForwardingDesc)
+            {
+                LOG_BRANCH("Last forwarding descriptor received ");
+                /* Sending RRC_DataForwardingFinished to RRC*/
+                SKL_ALLOC_INTERCOMP_MESSAGE(RRC_DataForwardingFinished_Ptr);
+
+                LOG_ASSERT_WITH_EXCEPTION(EXCEPTION_INTER_COMP_MSG_ALLOC_FAILED,
+                    NULL != RRC_DataForwardingFinished_Ptr,
+                    "Failed to allocate inter component message");
+
+                /*DONE_walkthrough_R2.0_Oct 25, 2010_root: set DL forward = false */
+                /* Set the flag that indicates that the forwarding is finished */
+                RRC_DataForwardingFinished_Ptr->isUL_forwardingFinished = TRUE;
+
+                RRC_DataForwardingFinished_Ptr->isDL_forwardingFinished = FALSE;
+
+                /* Set the radio bearer */
+                RRC_DataForwardingFinished_Ptr->rb_Index = receivedRLC_desc_Ptr->bearerIndex;
+
+                SEND_RRC_DATA_FORWARDING_FINISHED(RRC_DataForwardingFinished_Ptr,
+                    SKL_SENDING_METHOD_DEFAULT);
+
+            } /*if(Last forwarding descriptor received , sending RRC_DataForwardingFinished to RRC)*/
+        } /*if (UL tunnel with the specified TEID exists)*/
+        else
+        {
+            LOG_BRANCH("Invalid GTP TEID, tunnel not opened ");
+            /* The GTP tunnel was not established */
+
+            /* statistics - dropped packet because tunnel is closed */
+            STATS_GTP_RX_INCREMENT_DROPPED_PACKETS(receivedRLC_desc_Ptr->bearerIndex);
+
+        } /*else (Invalid GTP TEID)*/
+
+        a_SDUsToServe--;
+
+    } while(a_SDUsToServe !=0);
+
+
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+
+    LOG_EXIT("GTP_Rx_PDCP_RX_data_Handler");
+}
