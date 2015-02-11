@@ -1250,3 +1250,264 @@ void GTP_Rx_PDCP_RX_FWD_data_Handler(SDS_UINT32 a_SDUsToServe)
 
     LOG_EXIT("GTP_Rx_PDCP_RX_data_Handler");
 }
+SDS_Status GTP_Tx_PDCP(GTP_HEADER* gtpPacket ,SDS_UINT8 *packetStart_Ptr,SDS_UINT32 payloadOffset, GTP_SDU* parentGTP_SDU_Ptr)
+{
+    TX_RLC_SDU_Desc*    SDU_Desc_Ptr = NULL;
+    RX_RLC_SDU_Desc*    RX_SDU_Desc_Ptr = NULL;
+    SDS_Status          status = WRP_SUCCESS;
+    SDS_UINT16          tunnelTypeIndex;
+    SDS_UINT32          i;
+    SDS_BOOL32          PDCP_RX_SN_isFilled;
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+    LOG_ENTER("GTP_Tx_PDCP");
+
+
+    /*DONE_walkthrough_R2.0_Oct 25, 2010_root:  end marker is received in the following cases:
+     *
+     * 1- from S-GW on normal DL tunnel to be passed to PDCP_TX normally
+     * 2- at Target eNb on forwarding DL tunnel to be passed to PDCP_TX forward queue
+
+
+    DONE_walkthrough_R2.0_Oct 25, 2010_root: merge with function GTP_Tx_PDCP as there is
+     * a lot of common code
+
+
+    DONE_walkthrough_R2.0_Oct 27, 2010_root: remember to update this TX_SDU desc with
+     * pointer, offset, parent desc, SDU enqueued count, ... */
+
+
+    /*DONE_CROSS_REVIEW_habdallah ? generally try not to use magic numbers*/
+    /* Extracting Tunnel type from TEID */
+    tunnelTypeIndex = GET_TUNNEL_TYPE_INDEX_FROM_TEID(gtpPacket->TEID);
+
+    /*DONE_CROSS_REVIEW_habdallah is the the right compare?*/
+
+    /* Check if the Tunnel is not Uplink*/
+    if(GTP_FWD_UL_TUNNEL_TEID_INDEX != tunnelTypeIndex )
+    {
+        /*Sending to PDCP_TX*/
+        LOG_BRANCH("Tunnel type is either FWD_DL or Normal DL");
+
+        /* Allocate RLC SDU descriptor*/
+        SKL_FIXED_SIZE_BUFF_ALLOC(TX_DATA_POOL_RLC_SDU_DESC,
+                                    DEDICATED,
+                                    sizeof(*SDU_Desc_Ptr),
+                                    SDU_Desc_Ptr);
+        LOG_ASSERT_WITH_EXCEPTION(EXCEPTION_TX_DESC_ALLOC_FAILED,
+                                  NULL != SDU_Desc_Ptr,
+                                  "Failed to allocate TX_RLC_SDU_Desc") ;
+
+        /*DONE_walkthrough_R2.0_Oct 25, 2010_root: add inside SDU_Desc_Ptr pointer to arent
+         * GTP_DESC and increment SDU_Count inside GTP_DESC
+         */
+        /* Set the pointer to the parent GTP_SDU in the TX_RLC_SDU */
+        SDU_Desc_Ptr->parentGTP_SDU_Ptr = parentGTP_SDU_Ptr;
+
+        /* Increment Counter */
+        g_GTP_Ptr->tempEnqueuedSDUsCount++;
+
+        /*DONE_walkthrough_R2.0_Oct 25, 2010_root:  DO NOT allocate another rawDataBuffr
+         * we don't need it here
+         */
+        /* Set the raw data pointer to the start of the packet */
+        SDU_Desc_Ptr->rawDataBuff_Ptr = packetStart_Ptr;
+
+        /*DONE_walkthrough_R2.0_Oct 25, 2010_root: the rawDataOffset = decoded GTP header length (variable not fixed)*/
+        /* Set data offset in SDU */
+        SDU_Desc_Ptr->rawDataOffset = payloadOffset;
+
+        /* Set the length of the rawData*/
+        SDU_Desc_Ptr->rawDataLength = gtpPacket->length;
+
+        /* DONE_walkthrough_R2.0_Oct 25, 2010_root: instead of the memcpy, the
+         * SDU_Desc_Ptr->rawDataBuff_Ptr should point to the original rawDataBuff_Ptr
+         * passed in processPacket fn
+         */
+
+        /*DONE_walkthrough_R2.0_Oct 25, 2010_root: initialize the parameters of the Descriptor
+         * by default values: read_SN, isPDCP_freeSDU, isEndMarker , ..etc
+         */
+        /* Initialize all parameters */
+        SDU_Desc_Ptr->read_SN       = FALSE;
+
+        /* Check if the packet was End Marker*/
+        if(GTP_MSG_TYPE_END_MARKER == gtpPacket->msgType)
+        {
+            LOG_BRANCH("End Marker received");
+            SDU_Desc_Ptr->isEndMarker   = TRUE;
+
+            /* Hossam : Set the ciphered Data buffer pointer to NULL*/
+            SDU_Desc_Ptr->cipheredDataBuff_Ptr = NULL;
+
+        } /*if(End Marker received)*/
+        else
+        {
+            /* SDU is not an End Marker*/
+            SDU_Desc_Ptr->isEndMarker   = FALSE;
+        }
+
+
+        /* Fill descriptor parameters */
+        /*Pass the allocated new data buffer from TX_DATA_POOL_RAW to the SDU_Desc_Ptr->rawDataBuff_Ptr */
+        SDU_Desc_Ptr->rawDataLength = gtpPacket->length;
+        SDU_Desc_Ptr->bearerIndex   = ENB_GTP_ID_TO_BEARER_INDEX(gtpPacket->TEID);
+
+        /*Set the timeStamp */
+        SDU_Desc_Ptr->timeStamp = GET_SUBFRAME_COUNTER_TX();
+
+
+    } /*if(tunnel type is not GTP_FWD_UL_TUNNEL)*/
+    else
+    {
+        LOG_BRANCH("Tunnel type is GTP_FWD_UL_TUNNEL");
+
+        /* Allocate RLC SDU descriptor from different pool */
+        SKL_FIXED_SIZE_BUFF_ALLOC(RX_DATA_POOL_PDCP_T_FWD_SDU_DESC,
+                     SHARED,
+                    sizeof(*RX_SDU_Desc_Ptr),
+                    RX_SDU_Desc_Ptr);
+        LOG_ASSERT_WITH_EXCEPTION(EXCEPTION_RX_DESC_ALLOC_FAILED,
+                                  NULL != RX_SDU_Desc_Ptr,
+                                  "Failed to allocate RX_RLC_SDU_Desc");
+
+        /* Set the parent GTP_SDU */
+        RX_SDU_Desc_Ptr->parent.parentGTP_SDU_Ptr = parentGTP_SDU_Ptr;
+
+        /*DONE_walkthrough_R2.0_Oct 27, 2010_root: you can increment the count in another variable
+         * and set it in GTP_SDU desc only after all processing of rawDataBuff is finished
+         * such that the PCP/RLC does not reach the free condition by mistake
+         * if it handled its SDU desc before end of GTP processing
+         */
+        /* Increment Counter */
+        g_GTP_Ptr->tempEnqueuedSDUsCount++;
+
+        /* Set the raw data pointer to the start of the packet */
+        RX_SDU_Desc_Ptr->rawDataBuff_Ptr = packetStart_Ptr;
+
+        /* Set data offset in SDU */
+        RX_SDU_Desc_Ptr->data_Offset = payloadOffset;
+
+        /*DONE_walkthrough_R2.0_Oct 25, 2010_root: same comments as above in if condition*/
+
+        /* Fill descriptor parameters */
+        /*Pass the allocated new data buffer from TX_DATA_POOL_RAW to the SDU_Desc_Ptr->rawDataBuff_Ptr */
+        RX_SDU_Desc_Ptr->rawDataLength = gtpPacket->length;
+        RX_SDU_Desc_Ptr->bearerIndex   = ENB_GTP_ID_TO_BEARER_INDEX(gtpPacket->TEID);
+
+        /*DONE_walkthrough_R2.0_Oct 25, 2010_root: change the name of the flag to become: isPDCP_freeSDU */
+        /* Set the flag to indicate that the PDCP will not free this SDU*/
+        RX_SDU_Desc_Ptr->isPDCP_freeSDU = TRUE;
+
+        /* ----- Set the PDCP Sequence number if found in the GTP packet ------ */
+
+        /* Assert that the PDCP PDU exist as the PDCP_RX_SN is mandatory to be filled*/
+        LOG_ASSERT(TRUE == gtpPacket->extensionFlag," Missing PDCP PDU extension header , cannot fill mandatory PDCP_RX_SN");
+
+        /* Reset counter */
+        i = ZERO;
+
+        PDCP_RX_SN_isFilled = FALSE ;
+
+        /* Loop on extension headers to extract the required PDCP SN from PDCP PDU extension header*/
+        while((i<GTP_MAX_NUM_OF_EXTENSION_HEADERS_PER_PACKET)&&(NO_MORE_HEADERS != gtpPacket->extensionHeadersArray[i].type))
+        {
+            if(PDCP_PDU_NUMBER == gtpPacket->extensionHeadersArray[i].type)
+            {
+                LOG_BRANCH("Extension header type is PDCP PDU number");
+
+                /* Copy the PDCP PDU number in the SDU */
+                RX_SDU_Desc_Ptr->PDCP_RX_SN = gtpPacket->extensionHeadersArray[i].content;
+
+                /* Set the flag to TRUE to indicate that the PDCP_RX_SN was filled */
+                PDCP_RX_SN_isFilled = TRUE;
+
+                /* Break from the while loop*/
+                break;
+            } /*if(Extension header type is PDCP PDU number)*/
+
+            /*Increment counter */
+            i++;
+
+        } /*while((i<GTP_MAX_NUM_OF_EXTENSION_HEADERS_PER_PACKET)&&(NO_MORE_HEADERS != gtpPacket->extensionHeadersArray[i].type))*/
+
+        /* Assert that the PDCP PDU exist as the PDCP_RX_SN is mandatory to be filled*/
+        LOG_ASSERT(TRUE == PDCP_RX_SN_isFilled," Missing PDCP PDU extension header , cannot fill mandatory PDCP_RX_SN");
+
+        /* TODO_memad :walkthrough_R2.0_Oct 27, 2010_root: make sure to decrement the enqueuedSDUs if insert
+         * in queue failed*/
+        /* Post the descriptor to the PDCP RX in case of Forwarding*/
+        QUEUE_MANAGER_ENQUEUE(QUEUE_ID_RX_GTP_PDCP_T_ENB_FWD,RX_SDU_Desc_Ptr,&status);
+        LOG_ASSERT_WITH_EXCEPTION(EXCEPTION_DATA_QUEUE_OVERFLOW, WRP_SUCCESS == status,
+                                                  "RX_GTP_PDCP_T_ENB_FWD queue is full");
+
+        goto function_exit;
+
+    } /*else (tunnel type is GTP_FWD_UL_TUNNEL)*/
+
+
+    /*TODO_memad :walkthrough_R2.0_Oct 27, 2010_root: if insert in queue of DCP fails, remember to decremnt
+     * the enqueuedSDU count in GTP_SDU desc */
+    LOG_BRANCH("Switching on (tunnelTypeIndex)");
+        switch (tunnelTypeIndex)
+        {
+        case GTP_DL_TUNNEL_TEID_INDEX:
+            LOG_BRANCH("CASE  GTP_DL_TUNNEL_TEID_MASK_INDEX: Enqueue QUEUE_ID_TX_GTP_PDCP");
+
+            /* Post the descriptor to the Normal PDCP TX */
+            QUEUE_MANAGER_ENQUEUE(QUEUE_ID_TX_GTP_PDCP,SDU_Desc_Ptr,&status);
+            LOG_ASSERT_WITH_EXCEPTION(EXCEPTION_DATA_QUEUE_OVERFLOW, WRP_SUCCESS == status,
+                                                      "TX_GTP_PDCP queue is full");
+
+            break;
+
+        case GTP_FWD_DL_TUNNEL_TEID_INDEX:
+            LOG_BRANCH("CASE  GTP_FWD_DL_TUNNEL_TEID_MASK:Enqueue QUEUE_ID_TX_GTP_PDCP_T_ENB_FWD");
+
+            /* Set the PDCP Sequence number if found in the GTP packet */
+            if(TRUE == gtpPacket->extensionFlag)
+            {
+                LOG_BRANCH("Extension header exist");
+                /* Reset counter */
+                i = ZERO;
+
+                while((i<GTP_MAX_NUM_OF_EXTENSION_HEADERS_PER_PACKET)&&(NO_MORE_HEADERS != gtpPacket->extensionHeadersArray[i].type))
+                {
+                    if(PDCP_PDU_NUMBER == gtpPacket->extensionHeadersArray[i].type)
+                    {
+                        LOG_BRANCH("Extension header type is PDCP PDU number");
+
+                        /* Copy the PDCP PDU number in the SDU */
+                        SDU_Desc_Ptr->count = gtpPacket->extensionHeadersArray[i].content;
+
+                        /* Set the flag to true */
+                        SDU_Desc_Ptr->read_SN = TRUE;
+
+                        /* Break from the while loop*/
+                        break;
+                    } /*if(Extension header type is PDCP PDU number)*/
+
+                    /*Increment counter */
+                    i++;
+
+                } /*while((i<GTP_MAX_NUM_OF_EXTENSION_HEADERS_PER_PACKET)&&(NO_MORE_HEADERS != gtpPacket->extensionHeadersArray[i].type))*/
+
+            } /*if(Extension header exist)*/
+
+            /* Post the descriptor to the PDCP TX in case of Forwarding*/
+            QUEUE_MANAGER_ENQUEUE(QUEUE_ID_TX_GTP_PDCP_T_ENB_FWD,SDU_Desc_Ptr,&status);
+            LOG_ASSERT_WITH_EXCEPTION(EXCEPTION_DATA_QUEUE_OVERFLOW, WRP_SUCCESS == status,
+                                                      "TX_GTP_PDCP_T_ENB_FWD queue is full");
+
+            break;
+        default:
+            LOG_BRANCH("default");
+            break;
+        } /*switch (tunnelTypeIndex)*/
+
+
+
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+function_exit:
+    LOG_EXIT("GTP_Tx_PDCP");
+    return status;
+}
