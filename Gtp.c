@@ -1511,3 +1511,138 @@ function_exit:
     LOG_EXIT("GTP_Tx_PDCP");
     return status;
 }
+void GTP_closeTunnel_Req_Handler(GTP_closeTunnel_Req* a_msg_Ptr)
+{
+    RRC_closeTunnel_Rsp*    closeTunnelRsp;
+    SDS_UINT32              tunnelIndex;
+    SDS_UINT16              bearerIndex;
+    SDS_UINT16              UE_Index;
+    TunnelType              closedTunnelType;
+    TunnelMode              closedTunnelMode;
+    SDS_UINT8               closedTunnelsCount;
+    /*- VARIABLE DECLARATION ENDS HERE -----------------------------------------------------------*/
+    LOG_ENTER("GTP_closeTunnel_Req_Handler");
+
+    SKL_ALLOC_INTERCOMP_MESSAGE(closeTunnelRsp);
+    LOG_ASSERT_WITH_EXCEPTION( EXCEPTION_INTER_COMP_MSG_ALLOC_FAILED,
+                                   closeTunnelRsp != NULL,
+                                   "Inter-component Message allocation failure");
+
+    closeTunnelRsp->UE_Index = a_msg_Ptr->UE_Index;
+    /*DONE_walkthrough_R2.0_Oct 25, 2010_root: add the transaction_Ptr */
+    closeTunnelRsp->transaction_Ptr = a_msg_Ptr->transaction_Ptr;
+
+    closedTunnelsCount = a_msg_Ptr->releasedTunnelsCount;
+
+    for (tunnelIndex = ZERO; tunnelIndex < closedTunnelsCount; tunnelIndex++)
+    {
+        closedTunnelType = a_msg_Ptr->releasedTunnelsArray[tunnelIndex].TunnelType;
+        closedTunnelMode = a_msg_Ptr->releasedTunnelsArray[tunnelIndex].TunnelMode;
+
+        /* Establishing GTP tunnel */
+        bearerIndex = a_msg_Ptr->releasedTunnelsArray[tunnelIndex].bearerIndex;
+
+        LOG_ASSERT(NULL != g_GTP_Ptr->tunnelsRecord[bearerIndex]," No GTP record for this radio bearer");
+
+        if( (DL_TUNNEL == closedTunnelType) || (BI_TUNNEL == closedTunnelType) )
+        {
+            LOG_BRANCH("Established Tunnel is DL or Bi-Directional");
+
+            if((Normal_Tunnel == closedTunnelMode) || (Both_Normal_and_Forwarding_Rx_Tunnels == closedTunnelMode))
+            {
+                LOG_BRANCH("Releasing Normal Tunnel");
+
+                if(NON_GBR == g_GTP_Ptr->tunnelsRecord[bearerIndex]->DL_Tunnel_Ptr->QCI_Type)
+                {
+                    LOG_BRANCH("Non GBR bearer");
+
+                    UE_Index = g_GTP_Ptr->tunnelsRecord[bearerIndex]->UE_Index;
+
+                    LOG_ASSERT(NULL != g_GTP_Ptr->UEsRecordsArray_Ptr[UE_Index],"Non GBR bearer with no UE record");
+
+                    g_GTP_Ptr->UEsRecordsArray_Ptr[UE_Index]->noOfTunnels--;
+
+                    if(ZERO == g_GTP_Ptr->UEsRecordsArray_Ptr[UE_Index]->noOfTunnels)
+                    {
+                        LOG_BRANCH("Release UE record");
+
+                        SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->UERecordsPool_Ptr,
+                                                    DEDICATED,
+                                                    g_GTP_Ptr->UEsRecordsArray_Ptr[UE_Index]);
+
+                    } /*if(Release UE record)*/
+
+                } /*if(Non GBR bearer)*/
+
+                /* Release this record */
+                SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->tunnelContextPool_Ptr,
+                                                DEDICATED,
+                                                g_GTP_Ptr->tunnelsRecord[bearerIndex]->DL_Tunnel_Ptr);
+            } /*if(Creating Normal Tunnel)*/
+
+            if((RECEIVE_FORWARDING == closedTunnelMode) || (SEND_FOWARDING == closedTunnelMode)
+                            || (Both_Normal_and_Forwarding_Rx_Tunnels == closedTunnelMode))
+            {
+                LOG_BRANCH("close Forwarding tunnel ");
+                /* Release this record */
+                SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->tunnelContextPool_Ptr,
+                                                DEDICATED,
+                                                g_GTP_Ptr->tunnelsRecord[bearerIndex]->FWD_DL_Tunnel_Ptr);
+            }
+        }
+        if((UL_TUNNEL == closedTunnelType) || (BI_TUNNEL == closedTunnelType))
+        {
+
+            if((Normal_Tunnel == closedTunnelMode) || (Both_Normal_and_Forwarding_Rx_Tunnels == closedTunnelMode))
+            {
+                LOG_BRANCH("Releasing Normal Tunnel");
+
+                /* Remove ECHO path for this transport address */
+                GTP_removeEchoPath(g_GTP_Ptr->tunnelsRecord[bearerIndex]->UL_Tunnel_Ptr);
+
+                /* Release this record */
+                SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->tunnelContextPool_Ptr,
+                                                DEDICATED,
+                                                g_GTP_Ptr->tunnelsRecord[bearerIndex]->UL_Tunnel_Ptr);
+
+            } /*if(Creating Normal Tunnel)*/
+
+            if((RECEIVE_FORWARDING == closedTunnelMode) || (Both_Normal_and_Forwarding_Rx_Tunnels == closedTunnelMode)
+                            ||(SEND_FOWARDING == closedTunnelMode))
+            {
+                LOG_BRANCH("Creating Forwarding tunnel to receive on, GTP will assign the TEID");
+
+                /* Release this record */
+                SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->tunnelContextPool_Ptr,
+                                                DEDICATED,
+                                                g_GTP_Ptr->tunnelsRecord[bearerIndex]->FWD_UL_Tunnel_Ptr);
+            } /*if(Creating Forwarding tunnel to receive on, GTP will assign the TEID)*/
+
+
+        } /*if(Established tunnel is UL or Bi-directional)*/
+
+        /*DONE_walkthrough_R2.0_Oct 25, 2010_root: we need to release when all reocrds = null
+         * not when equal 4 since it is not mandatory to have all 4 tunnels allocated
+         */
+        /* Check if all entries for this radioBearer are empty , release the Record */
+        if((NULL == g_GTP_Ptr->tunnelsRecord[bearerIndex]->DL_Tunnel_Ptr) &&
+                        (NULL == g_GTP_Ptr->tunnelsRecord[bearerIndex]->FWD_DL_Tunnel_Ptr)&&
+                        (NULL == g_GTP_Ptr->tunnelsRecord[bearerIndex]->FWD_UL_Tunnel_Ptr)&&
+                        (NULL == g_GTP_Ptr->tunnelsRecord[bearerIndex]->UL_Tunnel_Ptr))
+        {
+            LOG_BRANCH("All tunnels related to this radio bearer were released, the bearer record will be released");
+
+            /* Release this record */
+            SKL_FIXED_SIZE_BUFF_RELEASE(g_GTP_Ptr->tunnelRecordsPool_Ptr,
+                                            DEDICATED,
+                                            g_GTP_Ptr->tunnelsRecord[bearerIndex]);
+        } /*if(All tunnels related to this radio bearer were released, the bearer record will be released)*/
+
+    } /*for*/
+
+    SEND_RRC_CLOSE_TUNNEL_RSP(closeTunnelRsp, SKL_SENDING_METHOD_DEFAULT);
+
+    /*- CLEAN UP CODE STARTS HERE ----------------------------------------------------------------*/
+
+    LOG_EXIT("GTP_closeTunnel_Req_Handler");
+}
